@@ -263,11 +263,6 @@ export default function HomePage({ onNavigateToLeads }: HomePageProps) {
     if (type === 'groups' && additionalData?.source) {
       try {
         setIsUploadingNewScrapes(true);
-        setToast({
-          show: true,
-          message: `Uploading ${file.name} from ${additionalData.source}...`,
-          type: 'success'
-        });
 
         const result = await uploadNewScrapes(file, additionalData.source, 'default_user');
 
@@ -300,12 +295,6 @@ export default function HomePage({ onNavigateToLeads }: HomePageProps) {
         const campaign = campaigns.find(c => c.id === additionalData.campaign_id);
         const campaignName = campaign?.campaign_name || 'selected campaign';
 
-        setToast({
-          show: true,
-          message: `Uploading ${file.name} for ${campaignName}...`,
-          type: 'success'
-        });
-
         const result = await uploadCampaignResults(file, additionalData.campaign_id, campaignName);
 
         if (result.success) {
@@ -334,11 +323,6 @@ export default function HomePage({ onNavigateToLeads }: HomePageProps) {
     } else if (type === 'labels') {
       try {
         setIsUploadingLabels(true);
-        setToast({
-          show: true,
-          message: `Uploading ${file.name}...`,
-          type: 'success'
-        });
 
         const result = await uploadLabels(file, 'default_user');
 
