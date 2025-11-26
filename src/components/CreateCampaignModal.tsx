@@ -3,6 +3,7 @@ import { X, Users, ChevronDown, ChevronUp } from 'lucide-react';
 import type { Campaign, WhatsAppGroup } from '../lib/supabase-queries';
 import { getWhatsAppGroupsWithLeadCounts } from '../lib/supabase-queries';
 import { supabase } from '../lib/supabase';
+import { CURRENT_USER_ID } from '../lib/constants';
 
 interface CreateCampaignModalProps {
   isOpen: boolean;
@@ -66,7 +67,7 @@ export default function CreateCampaignModal({
     setIsLoadingGroups(true);
     try {
       const requireAuth = import.meta.env.VITE_REQUIRE_AUTH === 'true';
-      let userId = 'default_user';
+      let userId = CURRENT_USER_ID;
 
       if (requireAuth) {
         const { data: { user } } = await supabase.auth.getUser();
