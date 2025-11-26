@@ -5,6 +5,7 @@ import CampaignTable from '../components/CampaignTable';
 import Toast from '../components/Toast';
 import { getActionableMetrics, subscribeSyncEvents, formatRelativeTime, getCampaigns, type ActionableMetrics, type SyncEvent, type Campaign } from '../lib/supabase-queries';
 import { uploadNewScrapes, uploadCampaignResults, uploadLabels } from '../lib/n8n-webhook';
+import { CURRENT_USER_ID } from '../lib/constants';
 
 interface UploadCardProps {
   title: string;
@@ -264,7 +265,7 @@ export default function HomePage({ onNavigateToLeads }: HomePageProps) {
       try {
         setIsUploadingNewScrapes(true);
 
-        const result = await uploadNewScrapes(file, additionalData.source, 'default_user');
+        const result = await uploadNewScrapes(file, additionalData.source, CURRENT_USER_ID);
 
         if (result.success) {
           setToast({
@@ -324,7 +325,7 @@ export default function HomePage({ onNavigateToLeads }: HomePageProps) {
       try {
         setIsUploadingLabels(true);
 
-        const result = await uploadLabels(file, 'default_user');
+        const result = await uploadLabels(file, CURRENT_USER_ID);
 
         if (result.success) {
           setToast({
