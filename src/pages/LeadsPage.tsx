@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Search, Filter, Download, ChevronLeft, ChevronRight, AlertCircle } from 'lucide-react';
 import { getLeads, LeadListItem } from '../lib/supabase-queries';
 import LeadDetailPanel from '../components/LeadDetailPanel';
+import { CURRENT_USER_ID } from '../lib/constants';
 
 const segmentColors = {
   HOT: 'bg-red-500/20 text-red-500',
@@ -62,7 +63,7 @@ export default function LeadsPage() {
 
     try {
       const result = await getLeads({
-        userId: 'default_user',
+        userId: CURRENT_USER_ID,
         page: currentPage,
         pageSize: itemsPerPage,
         searchTerm,
