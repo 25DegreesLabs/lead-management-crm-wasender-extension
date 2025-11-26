@@ -1,3 +1,5 @@
+import { CURRENT_USER_ID } from './constants';
+
 const N8N_WEBHOOK_URL = import.meta.env.VITE_N8N_WEBHOOK_URL;
 const N8N_CAMPAIGN_WEBHOOK_URL = import.meta.env.VITE_N8N_CAMPAIGN_WEBHOOK_URL;
 const DEFAULT_FILE_PATH = '/path/to/mock_data_generator/outputs/MAIN_LEADS.csv';
@@ -234,7 +236,8 @@ export async function uploadCampaignResults(
     formData.append('upload_type', 'results');
     formData.append('campaign_id', campaignId);
     formData.append('campaign_name', campaignName);
-    formData.append('user_id', 'default_user');
+    formData.append('user_id', CURRENT_USER_ID);
+    formData.append('file_name', file.name);
 
     if (!N8N_WEBHOOK_URL) {
       return {
@@ -313,7 +316,7 @@ export interface UploadNewScrapesResponse {
 export async function uploadNewScrapes(
   file: File,
   source: string,
-  userId: string = 'default_user'
+  userId: string = CURRENT_USER_ID
 ): Promise<UploadNewScrapesResponse> {
   if (USE_MOCK_DATA) {
     return new Promise((resolve) => {
@@ -336,6 +339,7 @@ export async function uploadNewScrapes(
     formData.append('upload_type', 'new_scrapes');
     formData.append('source', source);
     formData.append('user_id', userId);
+    formData.append('file_name', file.name);
 
     if (!N8N_WEBHOOK_URL) {
       return {
@@ -406,7 +410,7 @@ export interface UploadLabelsResponse {
 
 export async function uploadLabels(
   file: File,
-  userId: string = 'default_user'
+  userId: string = CURRENT_USER_ID
 ): Promise<UploadLabelsResponse> {
   if (USE_MOCK_DATA) {
     return new Promise((resolve) => {
@@ -435,6 +439,7 @@ export async function uploadLabels(
     formData.append('file', file);
     formData.append('upload_type', 'labels');
     formData.append('user_id', userId);
+    formData.append('file_name', file.name);
 
     const response = await fetch(N8N_WEBHOOK_URL, {
       method: 'POST',
