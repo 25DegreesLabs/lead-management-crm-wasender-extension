@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { X, Download, Users, Upload, Trash2, MessageSquare } from 'lucide-react';
+import { X, Download, Users, Upload, Trash2, MessageSquare, UploadCloud } from 'lucide-react';
 import { type Campaign, getCampaignLeads, getCampaignGroups, type WhatsAppGroup, generateCampaignCSV as generateCampaignCSVQuery, deleteCampaign } from '../lib/supabase-queries';
 import { generateCampaignCSV } from '../lib/csv-utils';
 import { uploadCampaignResults } from '../lib/n8n-webhook';
@@ -284,7 +284,7 @@ export default function CampaignDetailsModal({
 
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 mt-6 pt-4 sm:mt-8 sm:pt-6 border-t border-gray-200 dark:border-gray-700">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3 mt-6 pt-4 sm:mt-8 sm:pt-6 border-t border-gray-200 dark:border-gray-700">
           <button
             onClick={handleViewLeads}
             disabled={!onNavigateToLeads}
@@ -302,6 +302,15 @@ export default function CampaignDetailsModal({
             <Download className="w-4 h-4" />
             <span className="hidden sm:inline">{isDownloading ? 'Downloading...' : 'Download CSV'}</span>
             <span className="sm:hidden">CSV</span>
+          </button>
+          <button
+            onClick={() => setShowUploadModal(true)}
+            disabled={isUploading}
+            className="px-4 py-2.5 sm:px-5 sm:py-3 bg-green-500/10 dark:bg-green-500/20 border border-green-500 dark:border-green-400 text-green-600 dark:text-green-400 rounded-xl font-semibold hover:bg-green-500/20 dark:hover:bg-green-500/30 transition-all duration-300 flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <UploadCloud className="w-4 h-4" />
+            <span className="hidden sm:inline">Upload Results</span>
+            <span className="sm:hidden">Upload</span>
           </button>
           <button
             onClick={handleDeleteClick}
