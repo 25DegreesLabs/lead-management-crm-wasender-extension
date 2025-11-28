@@ -1106,10 +1106,10 @@ export async function getLeads(params: LeadsQueryParams): Promise<LeadsQueryResu
   } else if (activityFilter === 'Contacted') {
     query = query
       .not('last_contacted_date', 'is', null)
-      .or('engagement_level.neq.ENGAGED,engagement_level.is.null')
-      .eq('reply_received', false);
+      .eq('reply_received', false)
+      .neq('engagement_level', 'ENGAGED');
   } else if (activityFilter === 'Replied') {
-    query = query.or('engagement_level.eq.ENGAGED,reply_received.eq.true');
+    query = query.or('(engagement_level.eq.ENGAGED),(reply_received.eq.true)');
   }
 
   const countQuery = query;
@@ -1322,7 +1322,7 @@ export async function getSegmentDistribution(userId: string): Promise<SegmentDis
   }
 
   const activeLeads = leads.filter(
-    lead => lead.status !== 'NOT_INTERESTED'
+    lead => lead.status !== 'NOT_INTERESTED' && lead.do_not_contact === false
   );
 
   const totalActive = activeLeads.length;
