@@ -1144,7 +1144,7 @@ export async function getLeadDetail(leadId: string): Promise<LeadDetail | null> 
     .select(
       `
       id,
-      phone_number::text,
+      phone_number,
       first_name,
       last_name,
       email,
@@ -1192,6 +1192,11 @@ export async function getLeadDetail(leadId: string): Promise<LeadDetail | null> 
   if (error) {
     console.error('Error fetching lead detail:', error);
     return null;
+  }
+
+  // Convert phone_number to string if it's not already
+  if (data && data.phone_number) {
+    data.phone_number = String(data.phone_number);
   }
 
   return data;
