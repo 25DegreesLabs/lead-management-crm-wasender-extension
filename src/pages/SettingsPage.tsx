@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Settings as SettingsIcon, Users, MessageSquare, Zap, Plus, Pencil, Trash2, RotateCcw } from 'lucide-react';
+import { Settings as SettingsIcon, Users, MessageSquare, Zap, Plus, Pencil, Trash2, RotateCcw, Archive, RefreshCw } from 'lucide-react';
 import {
   getWhatsAppGroups,
   createWhatsAppGroup,
@@ -13,8 +13,15 @@ import {
   deleteEngagementRule,
   deleteAllEngagementRules,
   bulkCreateEngagementRules,
+  getLabelMappingsWithLeadCounts,
+  createLabelMapping,
+  updateLabelMapping,
+  deleteLabelMapping,
+  archiveLabelMapping,
+  reactivateLabelMapping,
   type WhatsAppGroup,
-  type EngagementRule
+  type EngagementRule,
+  type LabelMapping
 } from '../lib/supabase-queries';
 import { supabase } from '../lib/supabase';
 import AddGroupModal from '../components/AddGroupModal';
@@ -22,7 +29,12 @@ import EditGroupModal from '../components/EditGroupModal';
 import ResetGroupsModal from '../components/ResetGroupsModal';
 import EditRulesModal from '../components/EditRulesModal';
 import ResetRulesModal from '../components/ResetRulesModal';
+import AddLabelMappingModal from '../components/AddLabelMappingModal';
+import EditLabelMappingModal from '../components/EditLabelMappingModal';
+import ConfirmLabelNameChangeModal from '../components/ConfirmLabelNameChangeModal';
+import ConfirmLabelDeleteModal from '../components/ConfirmLabelDeleteModal';
 import Toast from '../components/Toast';
+import { CURRENT_USER_ID } from '../lib/constants';
 
 interface ToastState {
   show: boolean;
@@ -34,6 +46,7 @@ export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<'groups' | 'labels' | 'rules'>('groups');
   const [whatsappGroups, setWhatsappGroups] = useState<WhatsAppGroup[]>([]);
   const [engagementRules, setEngagementRules] = useState<EngagementRule[]>([]);
+  const [labelMappings, setLabelMappings] = useState<LabelMapping[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showAddGroupModal, setShowAddGroupModal] = useState(false);
   const [showEditGroupModal, setShowEditGroupModal] = useState(false);
@@ -41,6 +54,12 @@ export default function SettingsPage() {
   const [showEditRulesModal, setShowEditRulesModal] = useState(false);
   const [showResetRulesModal, setShowResetRulesModal] = useState(false);
   const [selectedGroup, setSelectedGroup] = useState<WhatsAppGroup | null>(null);
+  const [showAddLabelModal, setShowAddLabelModal] = useState(false);
+  const [showEditLabelModal, setShowEditLabelModal] = useState(false);
+  const [showConfirmNameChangeModal, setShowConfirmNameChangeModal] = useState(false);
+  const [showConfirmDeleteModal, setShowConfirmDeleteModal] = useState(false);
+  const [selectedLabel, setSelectedLabel] = useState<LabelMapping | null>(null);
+  const [pendingLabelUpdate, setPendingLabelUpdate] = useState<LabelMapping | null>(null);
   const [toast, setToast] = useState<ToastState>({ show: false, message: '', type: 'success' });
 
   const showToast = (message: string, type: 'success' | 'error') => {
@@ -50,7 +69,7 @@ export default function SettingsPage() {
   const loadWhatsAppGroups = async () => {
     try {
       const requireAuth = import.meta.env.VITE_REQUIRE_AUTH === 'true';
-      let userId = 'default_user';
+      let userId = CURRENT_USER_ID;
 
       if (requireAuth) {
         const { data: { user } } = await supabase.auth.getUser();
@@ -70,7 +89,7 @@ export default function SettingsPage() {
   const loadEngagementRules = async () => {
     try {
       const requireAuth = import.meta.env.VITE_REQUIRE_AUTH === 'true';
-      let userId = 'default_user';
+      let userId = CURRENT_USER_ID;
 
       if (requireAuth) {
         const { data: { user } } = await supabase.auth.getUser();
@@ -87,10 +106,30 @@ export default function SettingsPage() {
     }
   };
 
+  const loadLabelMappings = async () => {
+    try {
+      const requireAuth = import.meta.env.VITE_REQUIRE_AUTH === 'true';
+      let userId = CURRENT_USER_ID;
+
+      if (requireAuth) {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          userId = user.id;
+        }
+      }
+
+      const labels = await getLabelMappingsWithLeadCounts(userId);
+      setLabelMappings(labels);
+    } catch (error) {
+      console.error('Error loading label mappings:', error);
+      showToast('Failed to load label mappings', 'error');
+    }
+  };
+
   useEffect(() => {
     const loadData = async () => {
       setIsLoading(true);
-      await Promise.all([loadWhatsAppGroups(), loadEngagementRules()]);
+      await Promise.all([loadWhatsAppGroups(), loadEngagementRules(), loadLabelMappings()]);
       setIsLoading(false);
     };
 
@@ -100,7 +139,7 @@ export default function SettingsPage() {
   const handleAddGroup = async (newGroup: Omit<WhatsAppGroup, 'id' | 'user_id' | 'created_at' | 'updated_at'>) => {
     try {
       const requireAuth = import.meta.env.VITE_REQUIRE_AUTH === 'true';
-      let userId = 'default_user';
+      let userId = CURRENT_USER_ID;
 
       if (requireAuth) {
         const { data: { user } } = await supabase.auth.getUser();
@@ -161,7 +200,7 @@ export default function SettingsPage() {
     try {
       // Determine user ID
       const requireAuth = import.meta.env.VITE_REQUIRE_AUTH === 'true';
-      let userId = 'default_user';
+      let userId = CURRENT_USER_ID;
 
       if (requireAuth) {
         const { data: { user } } = await supabase.auth.getUser();
@@ -218,7 +257,7 @@ export default function SettingsPage() {
   const handleResetRules = async () => {
     try {
       const requireAuth = import.meta.env.VITE_REQUIRE_AUTH === 'true';
-      let userId = 'default_user';
+      let userId = CURRENT_USER_ID;
 
       if (requireAuth) {
         const { data: { user } } = await supabase.auth.getUser();
@@ -280,6 +319,129 @@ export default function SettingsPage() {
     } catch (error) {
       console.error('Error saving rules:', error);
       showToast('Failed to save rules', 'error');
+    }
+  };
+
+  // =============================================
+  // LABEL MAPPING CRUD HANDLERS
+  // =============================================
+
+  const handleAddLabel = async (newLabel: {
+    whatsapp_label_name: string;
+    crm_segment: 'COLD' | 'WARM' | 'HOT' | 'DEAD' | null;
+    crm_status: 'NEW' | 'ACTIVE' | 'INACTIVE' | 'NOT_INTERESTED' | null;
+    engagement_level: 'NONE' | 'ENGAGED' | 'DISENGAGED' | null;
+  }) => {
+    try {
+      const requireAuth = import.meta.env.VITE_REQUIRE_AUTH === 'true';
+      let userId = CURRENT_USER_ID;
+
+      if (requireAuth) {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          showToast('You must be logged in to add labels', 'error');
+          return;
+        }
+        userId = user.id;
+      }
+
+      await createLabelMapping({
+        user_id: userId,
+        whatsapp_label_name: newLabel.whatsapp_label_name,
+        crm_segment: newLabel.crm_segment,
+        crm_status: newLabel.crm_status,
+        engagement_level: newLabel.engagement_level,
+      });
+
+      await loadLabelMappings();
+      setShowAddLabelModal(false);
+      showToast('Label mapping added successfully', 'success');
+    } catch (error) {
+      console.error('Error adding label mapping:', error);
+      showToast('Failed to add label mapping', 'error');
+    }
+  };
+
+  const handleEditLabel = async (updatedLabel: LabelMapping, nameChanged: boolean) => {
+    // If name changed, show confirmation modal
+    if (nameChanged) {
+      setPendingLabelUpdate(updatedLabel);
+      setShowEditLabelModal(false);
+      setShowConfirmNameChangeModal(true);
+      return;
+    }
+
+    // Otherwise, save directly
+    await handleConfirmLabelUpdate();
+  };
+
+  const handleConfirmLabelUpdate = async () => {
+    try {
+      const labelToUpdate = pendingLabelUpdate || selectedLabel;
+      if (!labelToUpdate) return;
+
+      await updateLabelMapping(labelToUpdate.id, {
+        whatsapp_label_name: labelToUpdate.whatsapp_label_name,
+        crm_segment: labelToUpdate.crm_segment,
+        crm_status: labelToUpdate.crm_status,
+        engagement_level: labelToUpdate.engagement_level,
+      });
+
+      await loadLabelMappings();
+      setShowEditLabelModal(false);
+      setShowConfirmNameChangeModal(false);
+      setSelectedLabel(null);
+      setPendingLabelUpdate(null);
+      showToast('Label mapping updated successfully', 'success');
+    } catch (error) {
+      console.error('Error updating label mapping:', error);
+      showToast('Failed to update label mapping', 'error');
+    }
+  };
+
+  const handleDeleteLabel = async (label: LabelMapping) => {
+    setSelectedLabel(label);
+    setShowConfirmDeleteModal(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    try {
+      if (!selectedLabel) return;
+
+      await deleteLabelMapping(selectedLabel.id);
+      await loadLabelMappings();
+      setShowConfirmDeleteModal(false);
+      setSelectedLabel(null);
+      showToast('Label mapping deleted successfully', 'success');
+    } catch (error) {
+      console.error('Error deleting label mapping:', error);
+      showToast('Failed to delete label mapping', 'error');
+    }
+  };
+
+  const handleArchiveLabel = async () => {
+    try {
+      if (!selectedLabel) return;
+
+      await archiveLabelMapping(selectedLabel.id);
+      await loadLabelMappings();
+      setShowConfirmDeleteModal(false);
+      setSelectedLabel(null);
+      showToast('Label mapping archived successfully', 'success');
+    } catch (error) {
+      console.error('Error archiving label mapping:', error);
+      showToast('Failed to archive label mapping', 'error');
+    }
+  };
+
+  const handleReactivateLabel = async (labelId: string) => {
+    try {
+      await reactivateLabelMapping(labelId);
+      await loadLabelMappings();
+      showToast('Label mapping reactivated successfully', 'success');
+    } catch (error) {
+      console.error('Error reactivating label mapping:', error);
+      showToast('Failed to reactivate label mapping', 'error');
     }
   };
 
@@ -545,13 +707,22 @@ export default function SettingsPage() {
 
           {activeTab === 'labels' && (
             <div className="space-y-6">
-              <div>
-                <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white mb-1 sm:mb-2">
-                  System Labels
-                </h2>
-                <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
-                  WhatsApp labels automatically mapped to CRM segments
-                </p>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                  <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white mb-1 sm:mb-2">
+                    Label Mappings
+                  </h2>
+                  <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
+                    Configure how WhatsApp labels map to CRM segments and engagement levels
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowAddLabelModal(true)}
+                  className="px-4 py-2 bg-[#007AFF] text-white rounded-xl font-semibold hover:scale-[1.02] hover:brightness-110 transition-all duration-300 flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-[#007AFF]/50 shadow-[0_4px_12px_rgba(0,122,255,0.2)] text-sm"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Add Label Mapping</span>
+                </button>
               </div>
 
               <div className="bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl overflow-hidden">
@@ -564,149 +735,241 @@ export default function SettingsPage() {
                           WhatsApp Label
                         </th>
                         <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
-                          CRM Segment
+                          Segment
                         </th>
                         <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
-                          Description
+                          Status
+                        </th>
+                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
+                          Engagement
+                        </th>
+                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
+                          Leads
+                        </th>
+                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
+                          Actions
                         </th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                      <tr className="hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-2">
-                            <span className="text-base">🔵</span>
-                            <code className="text-sm font-mono text-gray-900 dark:text-white">leads</code>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className="px-3 py-1 text-xs font-semibold rounded-full bg-blue-500/20 text-blue-600 dark:text-blue-400">
-                            COLD
-                          </span>
-                        </td>
-                        <td className="px-6 py-4">
-                          <p className="text-sm text-gray-600 dark:text-gray-400">
-                            New prospects and potential clients who haven't been contacted yet
-                          </p>
-                        </td>
-                      </tr>
-                      <tr className="hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-2">
-                            <span className="text-base">🔴</span>
-                            <code className="text-sm font-mono text-gray-900 dark:text-white">clients</code>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className="px-3 py-1 text-xs font-semibold rounded-full bg-red-500/20 text-red-600 dark:text-red-400">
-                            HOT
-                          </span>
-                        </td>
-                        <td className="px-6 py-4">
-                          <p className="text-sm text-gray-600 dark:text-gray-400">
-                            Active clients with high engagement and booking potential
-                          </p>
-                        </td>
-                      </tr>
-                      <tr className="hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-2">
-                            <span className="text-base">🟠</span>
-                            <code className="text-sm font-mono text-gray-900 dark:text-white">old clients</code>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className="px-3 py-1 text-xs font-semibold rounded-full bg-orange-500/20 text-orange-600 dark:text-orange-400">
-                            WARM
-                          </span>
-                        </td>
-                        <td className="px-6 py-4">
-                          <p className="text-sm text-gray-600 dark:text-gray-400">
-                            Previous clients who may be interested in future services
-                          </p>
-                        </td>
-                      </tr>
-                      <tr className="hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-2">
-                            <span className="text-base">⚫</span>
-                            <code className="text-sm font-mono text-gray-900 dark:text-white">do not contact</code>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className="px-3 py-1 text-xs font-semibold rounded-full bg-gray-500/20 text-gray-600 dark:text-gray-400">
-                            DEAD
-                          </span>
-                        </td>
-                        <td className="px-6 py-4">
-                          <p className="text-sm text-gray-600 dark:text-gray-400">
-                            Contacts who have opted out or should not be contacted
-                          </p>
-                        </td>
-                      </tr>
+                      {labelMappings.filter(l => l.is_active).map((label) => (
+                        <tr key={label.id} className="hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
+                          <td className="px-6 py-4">
+                            <code className="text-sm font-mono font-semibold text-gray-900 dark:text-white">
+                              {label.whatsapp_label_name}
+                            </code>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className={`px-3 py-1 text-xs font-semibold rounded-full ${
+                              label.crm_segment === 'COLD' ? 'bg-blue-500/20 text-blue-600 dark:text-blue-400' :
+                              label.crm_segment === 'WARM' ? 'bg-orange-500/20 text-orange-600 dark:text-orange-400' :
+                              label.crm_segment === 'HOT' ? 'bg-red-500/20 text-red-600 dark:text-red-400' :
+                              label.crm_segment === 'DEAD' ? 'bg-gray-500/20 text-gray-600 dark:text-gray-400' :
+                              'bg-gray-500/20 text-gray-600 dark:text-gray-400'
+                            }`}>
+                              {label.crm_segment || 'None'}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className="text-sm text-gray-700 dark:text-gray-300">
+                              {label.crm_status || 'None'}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                              label.engagement_level === 'ENGAGED' ? 'bg-green-500/20 text-green-600 dark:text-green-400' :
+                              label.engagement_level === 'DISENGAGED' ? 'bg-red-500/20 text-red-600 dark:text-red-400' :
+                              'bg-gray-500/20 text-gray-600 dark:text-gray-400'
+                            }`}>
+                              {label.engagement_level || 'None'}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                              {label.lead_count || 0}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => {
+                                  setSelectedLabel(label);
+                                  setShowEditLabelModal(true);
+                                }}
+                                className="p-2 text-gray-400 hover:text-apple-blue transition-colors rounded-lg hover:bg-gray-100 dark:hover:bg-white/10"
+                                aria-label="Edit label"
+                                title="Edit label"
+                              >
+                                <Pencil className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteLabel(label)}
+                                className="p-2 text-gray-400 hover:text-red-500 transition-colors rounded-lg hover:bg-gray-100 dark:hover:bg-white/10"
+                                aria-label="Delete label"
+                                title="Delete label"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+
+                      {/* Archived Labels Section */}
+                      {labelMappings.filter(l => !l.is_active).length > 0 && (
+                        <>
+                          <tr className="bg-gray-100 dark:bg-white/10">
+                            <td colSpan={6} className="px-6 py-3">
+                              <div className="flex items-center gap-2">
+                                <Archive className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+                                <span className="text-sm font-bold text-gray-700 dark:text-gray-300">
+                                  Archived Labels
+                                </span>
+                              </div>
+                            </td>
+                          </tr>
+                          {labelMappings.filter(l => !l.is_active).map((label) => (
+                            <tr key={label.id} className="hover:bg-gray-50 dark:hover:bg-white/5 transition-colors opacity-60">
+                              <td className="px-6 py-4">
+                                <code className="text-sm font-mono font-semibold text-gray-600 dark:text-gray-400">
+                                  {label.whatsapp_label_name}
+                                </code>
+                              </td>
+                              <td className="px-6 py-4">
+                                <span className="px-3 py-1 text-xs font-semibold rounded-full bg-gray-500/20 text-gray-600 dark:text-gray-400">
+                                  {label.crm_segment || 'None'}
+                                </span>
+                              </td>
+                              <td className="px-6 py-4">
+                                <span className="text-sm text-gray-600 dark:text-gray-400">
+                                  {label.crm_status || 'None'}
+                                </span>
+                              </td>
+                              <td className="px-6 py-4">
+                                <span className="px-2 py-1 text-xs font-semibold rounded-full bg-gray-500/20 text-gray-600 dark:text-gray-400">
+                                  {label.engagement_level || 'None'}
+                                </span>
+                              </td>
+                              <td className="px-6 py-4">
+                                <span className="text-sm font-semibold text-gray-600 dark:text-gray-400">
+                                  {label.lead_count || 0}
+                                </span>
+                              </td>
+                              <td className="px-6 py-4">
+                                <button
+                                  onClick={() => handleReactivateLabel(label.id)}
+                                  className="p-2 text-gray-400 hover:text-green-500 transition-colors rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 flex items-center gap-1"
+                                  aria-label="Reactivate label"
+                                  title="Reactivate label"
+                                >
+                                  <RefreshCw className="w-4 h-4" />
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </>
+                      )}
                     </tbody>
                   </table>
                 </div>
 
                 {/* Mobile Card View */}
                 <div className="sm:hidden divide-y divide-gray-200 dark:divide-gray-700">
-                  <div className="p-4 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-lg">🔵</span>
-                      <code className="text-sm font-mono font-semibold text-gray-900 dark:text-white">leads</code>
+                  {labelMappings.filter(l => l.is_active).map((label) => (
+                    <div key={label.id} className="p-4 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
+                      <div className="flex items-start justify-between gap-3 mb-3">
+                        <code className="text-sm font-mono font-semibold text-gray-900 dark:text-white">
+                          {label.whatsapp_label_name}
+                        </code>
+                        <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">
+                          {label.lead_count || 0} leads
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap gap-2 mb-3">
+                        <span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${
+                          label.crm_segment === 'COLD' ? 'bg-blue-500/20 text-blue-600 dark:text-blue-400' :
+                          label.crm_segment === 'WARM' ? 'bg-orange-500/20 text-orange-600 dark:text-orange-400' :
+                          label.crm_segment === 'HOT' ? 'bg-red-500/20 text-red-600 dark:text-red-400' :
+                          label.crm_segment === 'DEAD' ? 'bg-gray-500/20 text-gray-600 dark:text-gray-400' :
+                          'bg-gray-500/20 text-gray-600 dark:text-gray-400'
+                        }`}>
+                          {label.crm_segment || 'None'}
+                        </span>
+                        <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-gray-500/20 text-gray-600 dark:text-gray-400">
+                          {label.crm_status || 'None'}
+                        </span>
+                        <span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${
+                          label.engagement_level === 'ENGAGED' ? 'bg-green-500/20 text-green-600 dark:text-green-400' :
+                          label.engagement_level === 'DISENGAGED' ? 'bg-red-500/20 text-red-600 dark:text-red-400' :
+                          'bg-gray-500/20 text-gray-600 dark:text-gray-400'
+                        }`}>
+                          {label.engagement_level || 'None'}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => {
+                            setSelectedLabel(label);
+                            setShowEditLabelModal(true);
+                          }}
+                          className="flex-1 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-white/10 rounded-lg hover:bg-gray-200 dark:hover:bg-white/15 transition-colors flex items-center justify-center gap-2"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                          <span>Edit</span>
+                        </button>
+                        <button
+                          onClick={() => handleDeleteLabel(label)}
+                          className="flex-1 px-3 py-2 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10 rounded-lg hover:bg-red-100 dark:hover:bg-red-500/20 transition-colors flex items-center justify-center gap-2"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>Delete</span>
+                        </button>
+                      </div>
                     </div>
-                    <div className="mb-2">
-                      <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-blue-500/20 text-blue-600 dark:text-blue-400">
-                        COLD
-                      </span>
-                    </div>
-                    <p className="text-xs text-gray-600 dark:text-gray-400">
-                      New prospects and potential clients who haven't been contacted yet
-                    </p>
-                  </div>
-                  <div className="p-4 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-lg">🔴</span>
-                      <code className="text-sm font-mono font-semibold text-gray-900 dark:text-white">clients</code>
-                    </div>
-                    <div className="mb-2">
-                      <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-red-500/20 text-red-600 dark:text-red-400">
-                        HOT
-                      </span>
-                    </div>
-                    <p className="text-xs text-gray-600 dark:text-gray-400">
-                      Active clients with high engagement and booking potential
-                    </p>
-                  </div>
-                  <div className="p-4 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-lg">🟠</span>
-                      <code className="text-sm font-mono font-semibold text-gray-900 dark:text-white">old clients</code>
-                    </div>
-                    <div className="mb-2">
-                      <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-orange-500/20 text-orange-600 dark:text-orange-400">
-                        WARM
-                      </span>
-                    </div>
-                    <p className="text-xs text-gray-600 dark:text-gray-400">
-                      Previous clients who may be interested in future services
-                    </p>
-                  </div>
-                  <div className="p-4 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-lg">⚫</span>
-                      <code className="text-sm font-mono font-semibold text-gray-900 dark:text-white">do not contact</code>
-                    </div>
-                    <div className="mb-2">
-                      <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-gray-500/20 text-gray-600 dark:text-gray-400">
-                        DEAD
-                      </span>
-                    </div>
-                    <p className="text-xs text-gray-600 dark:text-gray-400">
-                      Contacts who have opted out or should not be contacted
-                    </p>
-                  </div>
+                  ))}
+
+                  {/* Archived Labels - Mobile */}
+                  {labelMappings.filter(l => !l.is_active).length > 0 && (
+                    <>
+                      <div className="p-4 bg-gray-100 dark:bg-white/10">
+                        <div className="flex items-center gap-2">
+                          <Archive className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+                          <span className="text-sm font-bold text-gray-700 dark:text-gray-300">
+                            Archived Labels
+                          </span>
+                        </div>
+                      </div>
+                      {labelMappings.filter(l => !l.is_active).map((label) => (
+                        <div key={label.id} className="p-4 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors opacity-60">
+                          <div className="flex items-start justify-between gap-3 mb-2">
+                            <code className="text-sm font-mono font-semibold text-gray-600 dark:text-gray-400">
+                              {label.whatsapp_label_name}
+                            </code>
+                            <button
+                              onClick={() => handleReactivateLabel(label.id)}
+                              className="px-3 py-1 text-xs text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-500/10 rounded-lg hover:bg-green-100 dark:hover:bg-green-500/20 transition-colors flex items-center gap-1"
+                            >
+                              <RefreshCw className="w-3 h-3" />
+                              <span>Reactivate</span>
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </>
+                  )}
                 </div>
+
+                {labelMappings.length === 0 && (
+                  <div className="text-center py-12 px-4">
+                    <p className="text-sm sm:text-base text-gray-500 dark:text-gray-400 mb-4">No label mappings configured</p>
+                    <button
+                      onClick={() => setShowAddLabelModal(true)}
+                      className="text-sm sm:text-base text-apple-blue hover:underline font-semibold"
+                    >
+                      Add your first label mapping
+                    </button>
+                  </div>
+                )}
               </div>
 
               <div className="bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl p-3 sm:p-4">
@@ -716,10 +979,11 @@ export default function SettingsPage() {
                   </div>
                   <div>
                     <h3 className="text-xs sm:text-sm font-semibold text-gray-900 dark:text-white mb-1">
-                      About System Labels
+                      How Label Mapping Works
                     </h3>
                     <p className="text-[11px] sm:text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
-                      These WhatsApp labels are automatically synced with your CRM segments. When a contact is assigned a label in WhatsApp, they are automatically categorized into the corresponding segment for targeted campaign messaging.
+                      When you upload WhatsApp labels, the CRM automatically updates lead records based on these mappings.
+                      Set engagement level to "ENGAGED" for labels that indicate a lead has replied (like "on going" or "Past Clients").
                     </p>
                   </div>
                 </div>
@@ -964,6 +1228,45 @@ Example: 40 + 20 = 60/100 → WARM segment`}
         isOpen={showResetRulesModal}
         onClose={() => setShowResetRulesModal(false)}
         onConfirm={handleResetRules}
+      />
+
+      <AddLabelMappingModal
+        isOpen={showAddLabelModal}
+        onClose={() => setShowAddLabelModal(false)}
+        onSave={handleAddLabel}
+      />
+
+      <EditLabelMappingModal
+        isOpen={showEditLabelModal}
+        onClose={() => {
+          setShowEditLabelModal(false);
+          setSelectedLabel(null);
+        }}
+        label={selectedLabel}
+        onSave={handleEditLabel}
+      />
+
+      <ConfirmLabelNameChangeModal
+        isOpen={showConfirmNameChangeModal}
+        onClose={() => {
+          setShowConfirmNameChangeModal(false);
+          setPendingLabelUpdate(null);
+        }}
+        onConfirm={handleConfirmLabelUpdate}
+        oldName={selectedLabel?.whatsapp_label_name || ''}
+        newName={pendingLabelUpdate?.whatsapp_label_name || ''}
+      />
+
+      <ConfirmLabelDeleteModal
+        isOpen={showConfirmDeleteModal}
+        onClose={() => {
+          setShowConfirmDeleteModal(false);
+          setSelectedLabel(null);
+        }}
+        onDelete={handleConfirmDelete}
+        onArchive={handleArchiveLabel}
+        labelName={selectedLabel?.whatsapp_label_name || ''}
+        leadCount={selectedLabel?.lead_count || 0}
       />
 
       {/* Toast */}
