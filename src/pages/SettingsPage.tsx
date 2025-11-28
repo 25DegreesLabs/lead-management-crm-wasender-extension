@@ -371,7 +371,8 @@ export default function SettingsPage() {
       return;
     }
 
-    // Otherwise, save directly
+    // Otherwise, save directly (set as pending first)
+    setPendingLabelUpdate(updatedLabel);
     await handleConfirmLabelUpdate();
   };
 
