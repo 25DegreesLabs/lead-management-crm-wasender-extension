@@ -313,6 +313,18 @@ export default function SettingsPage() {
 
   const handleSaveRules = async (updatedRules: any[]) => {
     try {
+      // Update each rule in the database
+      for (const rule of updatedRules) {
+        await updateEngagementRule(rule.id, {
+          rule_name: rule.rule_name,
+          rule_type: rule.rule_type,
+          points: rule.points,
+          trigger_condition: rule.trigger_condition,
+          description: rule.description,
+          active: rule.active,
+        });
+      }
+      // Reload rules to show updated data
       await loadEngagementRules();
       showToast('Engagement rules updated successfully', 'success');
       setShowEditRulesModal(false);
