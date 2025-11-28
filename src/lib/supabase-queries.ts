@@ -996,6 +996,7 @@ export interface LeadListItem {
   last_contacted_date: string | null;
   status: string | null;
   reply_received: boolean | null;
+  engagement_level: string | null;
   positive_signal_groups: string[] | null;
 }
 
@@ -1074,6 +1075,7 @@ export async function getLeads(params: LeadsQueryParams): Promise<LeadsQueryResu
       last_contacted_date,
       status,
       reply_received,
+      engagement_level,
       positive_signal_groups
     `,
       { count: 'exact' }
@@ -1104,9 +1106,10 @@ export async function getLeads(params: LeadsQueryParams): Promise<LeadsQueryResu
   } else if (activityFilter === 'Contacted') {
     query = query
       .not('last_contacted_date', 'is', null)
+      .or('engagement_level.neq.ENGAGED,engagement_level.is.null')
       .eq('reply_received', false);
   } else if (activityFilter === 'Replied') {
-    query = query.eq('reply_received', true);
+    query = query.or('engagement_level.eq.ENGAGED,reply_received.eq.true');
   }
 
   const countQuery = query;
@@ -1159,6 +1162,7 @@ export async function getLeadDetail(leadId: string): Promise<LeadDetail | null> 
       last_contacted_date,
       contact_count,
       reply_received,
+      engagement_level,
       last_reply_date,
       status,
       segment,
@@ -1210,7 +1214,7 @@ export interface SegmentDistribution {
 export async function getLeadPipelineMetrics(userId: string): Promise<LeadPipelineMetrics> {
   const { data: leads, error } = await supabase
     .from('leads')
-    .select('segment, status, reply_received, lead_score, do_not_contact')
+    .select('segment, status, reply_received, engagement_level, lead_score, do_not_contact')
     .eq('user_id', userId);
 
   if (error) {
@@ -1247,7 +1251,7 @@ export async function getLeadPipelineMetrics(userId: string): Promise<LeadPipeli
   ).length;
 
   const repliedLeads = activeLeads.filter(
-    lead => lead.status === 'REPLIED' || lead.reply_received === true
+    lead => lead.engagement_level === 'ENGAGED' || lead.reply_received === true
   ).length;
 
   const replyRate = totalActiveLeads > 0
@@ -1411,4 +1415,191 @@ export async function deleteCampaign(campaignId: string): Promise<void> {
     console.error('Error deleting campaign:', error);
     throw new Error(error.message);
   }
+}
+
+// =============================================
+// LABEL MAPPING CRUD FUNCTIONS
+// =============================================
+
+export interface LabelMapping {
+  id: string;
+  user_id: string;
+  whatsapp_label_name: string;
+  crm_segment: 'COLD' | 'WARM' | 'HOT' | 'DEAD' | null;
+  crm_status: 'NEW' | 'ACTIVE' | 'INACTIVE' | 'NOT_INTERESTED' | null;
+  engagement_level: 'NONE' | 'ENGAGED' | 'DISENGAGED' | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  lead_count?: number;
+}
+
+export async function getLabelMappings(userId: string): Promise<LabelMapping[]> {
+  const { data, error } = await supabase
+    .from('user_label_mappings')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: true });
+
+  if (error) {
+    console.error('Error fetching label mappings:', error);
+    return [];
+  }
+
+  return data || [];
+}
+
+export async function getLabelMappingsWithLeadCounts(userId: string): Promise<LabelMapping[]> {
+  const labels = await getLabelMappings(userId);
+
+  const labelsWithCounts = await Promise.all(
+    labels.map(async (label) => {
+      try {
+        // Count leads that have this label's segment, status, and engagement level
+        // This is an approximation - more accurate would be to track label assignments
+        let query = supabase
+          .from('leads')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', userId);
+
+        // Handle NULL values properly
+        if (label.crm_segment === null) {
+          query = query.is('segment', null);
+        } else {
+          query = query.eq('segment', label.crm_segment);
+        }
+
+        if (label.crm_status === null) {
+          query = query.is('status', null);
+        } else {
+          query = query.eq('status', label.crm_status);
+        }
+
+        if (label.engagement_level === null) {
+          query = query.is('engagement_level', null);
+        } else {
+          query = query.eq('engagement_level', label.engagement_level);
+        }
+
+        const { count, error } = await query;
+
+        if (error) {
+          console.error(`Error counting leads for label ${label.whatsapp_label_name}:`, error);
+          return { ...label, lead_count: 0 };
+        }
+
+        return { ...label, lead_count: count || 0 };
+      } catch (err) {
+        console.error(`Exception counting leads for label ${label.whatsapp_label_name}:`, err);
+        return { ...label, lead_count: 0 };
+      }
+    })
+  );
+
+  return labelsWithCounts;
+}
+
+export async function createLabelMapping(data: {
+  user_id: string;
+  whatsapp_label_name: string;
+  crm_segment: 'COLD' | 'WARM' | 'HOT' | 'DEAD' | null;
+  crm_status: 'NEW' | 'ACTIVE' | 'INACTIVE' | 'NOT_INTERESTED' | null;
+  engagement_level: 'NONE' | 'ENGAGED' | 'DISENGAGED' | null;
+}): Promise<LabelMapping> {
+  const { data: label, error } = await supabase
+    .from('user_label_mappings')
+    .insert({
+      user_id: data.user_id,
+      whatsapp_label_name: data.whatsapp_label_name,
+      crm_segment: data.crm_segment,
+      crm_status: data.crm_status,
+      engagement_level: data.engagement_level,
+      is_active: true,
+    })
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error creating label mapping:', error);
+    throw new Error(error.message);
+  }
+
+  return label;
+}
+
+export async function updateLabelMapping(
+  id: string,
+  data: {
+    whatsapp_label_name?: string;
+    crm_segment?: 'COLD' | 'WARM' | 'HOT' | 'DEAD' | null;
+    crm_status?: 'NEW' | 'ACTIVE' | 'INACTIVE' | 'NOT_INTERESTED' | null;
+    engagement_level?: 'NONE' | 'ENGAGED' | 'DISENGAGED' | null;
+  }
+): Promise<LabelMapping> {
+  const { data: label, error } = await supabase
+    .from('user_label_mappings')
+    .update({
+      ...data,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error updating label mapping:', error);
+    throw new Error(error.message);
+  }
+
+  return label;
+}
+
+export async function deleteLabelMapping(id: string): Promise<void> {
+  const { error } = await supabase
+    .from('user_label_mappings')
+    .delete()
+    .eq('id', id);
+
+  if (error) {
+    console.error('Error deleting label mapping:', error);
+    throw new Error(error.message);
+  }
+}
+
+export async function archiveLabelMapping(id: string): Promise<LabelMapping> {
+  const { data: label, error } = await supabase
+    .from('user_label_mappings')
+    .update({
+      is_active: false,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error archiving label mapping:', error);
+    throw new Error(error.message);
+  }
+
+  return label;
+}
+
+export async function reactivateLabelMapping(id: string): Promise<LabelMapping> {
+  const { data: label, error } = await supabase
+    .from('user_label_mappings')
+    .update({
+      is_active: true,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error reactivating label mapping:', error);
+    throw new Error(error.message);
+  }
+
+  return label;
 }
