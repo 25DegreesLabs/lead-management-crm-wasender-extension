@@ -624,10 +624,7 @@ export async function getCampaignLeads(campaign: Campaign): Promise<Lead[]> {
       last_name,
       segment,
       last_contacted_date,
-      whatsapp_groups_raw,
-      positive_signal_groups,
-      negative_signal_groups,
-      neutral_signal_groups
+      positive_signal_groups
     `)
     .or(`user_id.eq.${campaign.user_id},user_id.eq.default_user`);
 
@@ -657,12 +654,7 @@ export async function getCampaignLeads(campaign: Campaign): Promise<Lead[]> {
   if (selectedGroupNames.length > 0) {
     leads = leads.filter(lead => {
       // Check if lead belongs to ANY of the selected groups
-      const leadGroups = [
-        ...(lead.whatsapp_groups_raw || []),
-        ...(lead.positive_signal_groups || []),
-        ...(lead.negative_signal_groups || []),
-        ...(lead.neutral_signal_groups || [])
-      ];
+      const leadGroups = lead.positive_signal_groups || [];
 
       // Lead matches if ANY of their groups match ANY selected group
       return selectedGroupNames.some(selectedGroup =>
@@ -776,8 +768,8 @@ export async function getWhatsAppGroupsWithLeadCounts(userId: string): Promise<W
       const { count, error } = await supabase
         .from('leads')
         .select('*', { count: 'exact', head: true })
-        .eq('user_id', userId)
-        .or(`whatsapp_groups_raw.cs.{"${group.group_name}"},positive_signal_groups.cs.{"${group.group_name}"},negative_signal_groups.cs.{"${group.group_name}"},neutral_signal_groups.cs.{"${group.group_name}"}`);
+        .or(`user_id.eq.${userId},user_id.eq.default_user`)
+        .contains('positive_signal_groups', [group.group_name]);
 
       if (error) {
         console.error(`Error counting leads for group ${group.group_name}:`, error);
@@ -1214,7 +1206,7 @@ export async function getAllLeadsForExport(params: {
   // Build query
   let query = supabase
     .from('leads')
-    .select('id, phone_number, first_name, last_name, segment, status, last_contacted_date')
+    .select('id, phone_number, first_name, last_name, segment, status, last_contacted_date, reply_received, engagement_level')
     .or(`user_id.eq.${userId},user_id.eq.default_user`);  // Match both user IDs
 
   // Apply filters (same logic as getLeads)
@@ -1228,16 +1220,19 @@ export async function getAllLeadsForExport(params: {
     query = query.eq('segment', segmentFilter);
   }
 
-  if (statusFilter) {
+  if (statusFilter && statusFilter !== 'all') {
     query = query.eq('status', statusFilter);
   }
 
-  if (activityFilter === 'contacted') {
-    query = query.not('last_contacted_date', 'is', null);
-  } else if (activityFilter === 'not_contacted') {
+  if (activityFilter === 'Never Contacted') {
     query = query.is('last_contacted_date', null);
-  } else if (activityFilter === 'replied') {
-    query = query.eq('reply_received', true);
+  } else if (activityFilter === 'Contacted') {
+    query = query
+      .not('last_contacted_date', 'is', null)
+      .eq('reply_received', false)
+      .neq('engagement_level', 'ENGAGED');
+  } else if (activityFilter === 'Replied') {
+    query = query.or('(engagement_level.eq.ENGAGED),(reply_received.eq.true)');
   }
 
   // NO PAGINATION - fetch all results
