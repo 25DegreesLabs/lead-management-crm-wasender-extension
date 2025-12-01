@@ -255,7 +255,7 @@ export default function HomePage({ onNavigateToLeads }: HomePageProps) {
 
   const loadData = async () => {
     setIsLoading(true);
-    const metricsData = await getActionableMetrics();
+    const metricsData = await getActionableMetrics(CURRENT_USER_ID);
     setMetrics(metricsData);
     setIsLoading(false);
   };
