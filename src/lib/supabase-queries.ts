@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { CURRENT_USER_ID } from './constants';
 
 // Mock data toggle - set to true to use mock data instead of Supabase
 const USE_MOCK_DATA = import.meta.env.VITE_USE_MOCK_DATA === 'true' || false;
@@ -463,7 +464,7 @@ export async function createCampaign(data: {
   let query = supabase
     .from('leads')
     .select('id', { count: 'exact', head: true })
-    .in('user_id', [data.user_id, 'default_user'])
+    .in('user_id', [data.user_id, 'default_user', CURRENT_USER_ID])
     .eq('segment', data.segment);
 
   if (contactFilter.type === 'skip_days' && contactFilter.days > 0) {
@@ -496,7 +497,7 @@ export async function createCampaign(data: {
       const { data: leadsData, error: leadsError } = await supabase
         .from('leads')
         .select('id, positive_signal_groups')
-        .in('user_id', [data.user_id, 'default_user'])
+        .in('user_id', [data.user_id, 'default_user', CURRENT_USER_ID])
         .eq('segment', data.segment);
 
       if (!leadsError && leadsData) {
@@ -738,7 +739,7 @@ export async function getWhatsAppGroups(userId: string): Promise<WhatsAppGroup[]
   const { data, error} = await supabase
     .from('user_whatsapp_groups')
     .select('*')
-    .in('user_id', [userId, 'default_user'])
+    .in('user_id', [userId, 'default_user', CURRENT_USER_ID])
     .order('created_at', { ascending: true });
 
   if (error) {
@@ -892,7 +893,7 @@ export async function getEngagementRules(userId: string): Promise<EngagementRule
   const { data, error } = await supabase
     .from('engagement_rules')
     .select('*')
-    .in('user_id', [userId, 'default_user'])
+    .in('user_id', [userId, 'default_user', CURRENT_USER_ID])
     .order('created_at', { ascending: true });
 
   if (error) {
@@ -1115,7 +1116,7 @@ export async function getLeads(params: LeadsQueryParams): Promise<LeadsQueryResu
     `,
       { count: 'exact' }
     )
-    .in('user_id', [userId, 'default_user']);
+    .in('user_id', [userId, 'default_user', CURRENT_USER_ID]);
 
   if (searchTerm) {
     const phoneDigits = searchTerm.replace(/\D/g, '');
@@ -1205,7 +1206,7 @@ export async function getAllLeadsForExport(params: {
       positive_signal_groups
     `
     )
-    .in('user_id', [userId, 'default_user']);
+    .in('user_id', [userId, 'default_user', CURRENT_USER_ID]);
 
   if (searchTerm) {
     const phoneDigits = searchTerm.replace(/\D/g, '');

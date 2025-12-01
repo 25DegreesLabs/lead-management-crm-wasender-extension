@@ -6,6 +6,7 @@ import CampaignDetailsModal from '../components/CampaignDetailsModal';
 import Toast from '../components/Toast';
 import { createCampaign } from '../lib/supabase-queries';
 import { supabase } from '../lib/supabase';
+import { CURRENT_USER_ID } from '../lib/constants';
 
 interface ToastState {
   show: boolean;
@@ -60,7 +61,7 @@ export default function CampaignsPage({ onNavigateToLeads }: CampaignsPageProps)
         }
         userId = user.id;
       } else {
-        userId = 'default_user';
+        userId = CURRENT_USER_ID;
       }
 
       await createCampaign({
