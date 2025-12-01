@@ -2,6 +2,7 @@ import { BarChart3, Users, Flame, MessageCircle, TrendingUp, Database } from 'lu
 import { useState, useEffect } from 'react';
 import { getLeadPipelineMetrics, LeadPipelineMetrics, getSegmentDistribution, SegmentDistribution } from '../lib/supabase-queries';
 import SegmentDistributionChart from '../components/SegmentDistributionChart';
+import { CURRENT_USER_ID } from '../lib/constants';
 
 export default function AnalyticsPage() {
   const [metrics, setMetrics] = useState<LeadPipelineMetrics | null>(null);
@@ -19,7 +20,7 @@ export default function AnalyticsPage() {
     try {
       setLoading(true);
       setError(null);
-      const data = await getLeadPipelineMetrics('default_user');
+      const data = await getLeadPipelineMetrics(CURRENT_USER_ID);
       setMetrics(data);
     } catch (err) {
       console.error('Failed to load metrics:', err);
@@ -32,7 +33,7 @@ export default function AnalyticsPage() {
   const loadSegmentData = async () => {
     try {
       setSegmentLoading(true);
-      const data = await getSegmentDistribution('default_user');
+      const data = await getSegmentDistribution(CURRENT_USER_ID);
       setSegmentData(data);
     } catch (err) {
       console.error('Failed to load segment distribution:', err);
