@@ -33,7 +33,7 @@ export default function CampaignsPage({ onNavigateToLeads }: CampaignsPageProps)
 
   const loadCampaigns = async () => {
     setIsLoading(true);
-    const data = await getCampaigns(50);
+    const data = await getCampaigns(undefined, 50); // Pass undefined for userId to use default, 50 for limit
     setCampaigns(data);
     setIsLoading(false);
   };
