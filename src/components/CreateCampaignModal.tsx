@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X, Users, ChevronDown, ChevronUp } from 'lucide-react';
-import type { Campaign, WhatsAppGroup } from '../lib/supabase-queries';
-import { getWhatsAppGroupsWithLeadCounts } from '../lib/supabase-queries';
+import type { Campaign, WhatsAppGroup, LabelMapping } from '../lib/supabase-queries';
+import { getWhatsAppGroupsWithLeadCounts, getLabelMappings } from '../lib/supabase-queries';
 import { supabase } from '../lib/supabase';
 import { CURRENT_USER_ID } from '../lib/constants';
 
@@ -41,6 +41,9 @@ export default function CreateCampaignModal({
   const [groups, setGroups] = useState<WhatsAppGroup[]>([]);
   const [selectedGroups, setSelectedGroups] = useState<string[]>([]);
   const [isLoadingGroups, setIsLoadingGroups] = useState(false);
+  const [labels, setLabels] = useState<LabelMapping[]>([]);
+  const [targetingMode, setTargetingMode] = useState<'segment' | 'label'>('segment');
+  const [selectedLabel, setSelectedLabel] = useState<string | null>(null);
   const [isSegmentOpen, setIsSegmentOpen] = useState(false);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [isBudgetOpen, setIsBudgetOpen] = useState(false);
@@ -55,6 +58,7 @@ export default function CreateCampaignModal({
       document.addEventListener('keydown', handleEscape);
       document.body.style.overflow = 'hidden';
       loadGroups();
+      loadLabels();
     }
 
     return () => {
@@ -85,12 +89,41 @@ export default function CreateCampaignModal({
     }
   };
 
+  const loadLabels = async () => {
+    try {
+      const requireAuth = import.meta.env.VITE_REQUIRE_AUTH === 'true';
+      let userId = CURRENT_USER_ID;
+
+      if (requireAuth) {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) userId = user.id;
+      }
+
+      const data = await getLabelMappings(userId);
+      setLabels(data.filter(l => l.is_active));
+    } catch (error) {
+      console.error('Error loading labels:', error);
+    }
+  };
+
   if (!isOpen) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
+    let targetSegment = formData.segment;
+
+    // If label mode, map label to segment
+    if (targetingMode === 'label' && selectedLabel) {
+      const label = labels.find(l => l.whatsapp_label_name === selectedLabel);
+      if (label?.crm_segment) {
+        targetSegment = label.crm_segment as 'HOT' | 'WARM' | 'COLD';
+      }
+    }
+
     const campaignData: CampaignData = {
       ...formData,
+      segment: targetSegment,  // Use mapped segment
       contactFilter: enableSkip ? { type: 'skip_days', days: skipDays } : undefined,
       selectedGroups: selectedGroups.length > 0 ? selectedGroups : undefined,
     };
@@ -168,43 +201,99 @@ export default function CreateCampaignModal({
           </div>
 
           <div>
-            <button
-              type="button"
-              onClick={() => setIsSegmentOpen(!isSegmentOpen)}
-              className="w-full flex items-center justify-between text-sm font-medium text-white/90 mb-2 hover:text-white transition-colors"
-            >
-              <span>Target Segment</span>
-              {isSegmentOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-            </button>
-            {isSegmentOpen && (
-              <div className="space-y-3">
-                <select
-                  value={formData.segment}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      segment: e.target.value as 'HOT' | 'WARM' | 'COLD',
-                    })
-                  }
-                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:border-[#007AFF] transition-colors"
+            <label className="block text-sm font-medium text-white/90 mb-3">
+              Target By
+            </label>
+            <div className="flex gap-3 mb-4">
+              <button
+                type="button"
+                onClick={() => setTargetingMode('segment')}
+                className={`flex-1 px-4 py-3 rounded-lg transition-colors ${
+                  targetingMode === 'segment'
+                    ? 'bg-[#007AFF] text-white'
+                    : 'bg-white/10 text-white/70 hover:bg-white/15'
+                }`}
+              >
+                Segment (HOT/WARM/COLD)
+              </button>
+              <button
+                type="button"
+                onClick={() => setTargetingMode('label')}
+                className={`flex-1 px-4 py-3 rounded-lg transition-colors ${
+                  targetingMode === 'label'
+                    ? 'bg-[#007AFF] text-white'
+                    : 'bg-white/10 text-white/70 hover:bg-white/15'
+                }`}
+              >
+                WhatsApp Label
+              </button>
+            </div>
+
+            {targetingMode === 'segment' ? (
+              <div>
+                <button
+                  type="button"
+                  onClick={() => setIsSegmentOpen(!isSegmentOpen)}
+                  className="w-full flex items-center justify-between text-sm font-medium text-white/90 mb-2 hover:text-white transition-colors"
                 >
-                  <option value="HOT" className="bg-[#1E1E20] text-white">
-                    HOT Leads
-                  </option>
-                  <option value="WARM" className="bg-[#1E1E20] text-white">
-                    WARM Leads
-                  </option>
-                  <option value="COLD" className="bg-[#1E1E20] text-white">
-                    COLD Leads
-                  </option>
-                </select>
-                {showInsight && (
-                  <div className="px-4 py-3 bg-[#007AFF]/10 border border-[#007AFF]/30 rounded-lg">
-                    <p className="text-sm text-[#007AFF] italic">
-                      💡 Note: Based on your past campaigns, {formData.segment} leads average{' '}
-                      {averageReplyRate}% reply rate
-                    </p>
+                  <span>Target Segment</span>
+                  {isSegmentOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                </button>
+                {isSegmentOpen && (
+                  <div className="space-y-3">
+                    <select
+                      value={formData.segment}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          segment: e.target.value as 'HOT' | 'WARM' | 'COLD',
+                        })
+                      }
+                      className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:border-[#007AFF] transition-colors"
+                    >
+                      <option value="HOT" className="bg-[#1E1E20] text-white">
+                        HOT Leads
+                      </option>
+                      <option value="WARM" className="bg-[#1E1E20] text-white">
+                        WARM Leads
+                      </option>
+                      <option value="COLD" className="bg-[#1E1E20] text-white">
+                        COLD Leads
+                      </option>
+                    </select>
+                    {showInsight && (
+                      <div className="px-4 py-3 bg-[#007AFF]/10 border border-[#007AFF]/30 rounded-lg">
+                        <p className="text-sm text-[#007AFF] italic">
+                          💡 Note: Based on your past campaigns, {formData.segment} leads average{' '}
+                          {averageReplyRate}% reply rate
+                        </p>
+                      </div>
+                    )}
                   </div>
+                )}
+              </div>
+            ) : (
+              <div>
+                <label className="block text-sm font-medium text-white/90 mb-2">
+                  Select WhatsApp Label
+                </label>
+                <select
+                  value={selectedLabel || ''}
+                  onChange={(e) => setSelectedLabel(e.target.value)}
+                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:border-[#007AFF] transition-colors"
+                  required={targetingMode === 'label'}
+                >
+                  <option value="" className="bg-[#1E1E20] text-white">Choose a label...</option>
+                  {labels.map(label => (
+                    <option key={label.id} value={label.whatsapp_label_name} className="bg-[#1E1E20] text-white">
+                      {label.whatsapp_label_name} → {label.crm_segment || 'No segment'} / {label.crm_status || 'No status'}
+                    </option>
+                  ))}
+                </select>
+                {selectedLabel && (
+                  <p className="mt-2 text-xs text-white/50">
+                    This label maps to: {labels.find(l => l.whatsapp_label_name === selectedLabel)?.crm_segment || 'No segment'}
+                  </p>
                 )}
               </div>
             )}
