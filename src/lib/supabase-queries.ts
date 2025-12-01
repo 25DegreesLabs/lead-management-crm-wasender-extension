@@ -1173,6 +1173,82 @@ export async function getLeads(params: LeadsQueryParams): Promise<LeadsQueryResu
   };
 }
 
+export async function getAllLeadsForExport(params: {
+  userId: string;
+  searchTerm?: string;
+  segmentFilter?: string;
+  statusFilter?: string;
+  activityFilter?: string;
+}): Promise<LeadListItem[]> {
+  const {
+    userId,
+    searchTerm = '',
+    segmentFilter = 'all',
+    statusFilter = 'all',
+    activityFilter = 'all',
+  } = params;
+
+  let query = supabase
+    .from('leads')
+    .select(
+      `
+      id,
+      phone_number::text,
+      first_name,
+      last_name,
+      segment,
+      lead_score,
+      last_contacted_date,
+      status,
+      reply_received,
+      engagement_level,
+      positive_signal_groups
+    `
+    )
+    .in('user_id', [userId, 'default_user']);
+
+  if (searchTerm) {
+    const phoneDigits = searchTerm.replace(/\D/g, '');
+    if (phoneDigits) {
+      query = query.or(
+        `first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%,phone_number::text.ilike.%${phoneDigits}%`
+      );
+    } else {
+      query = query.or(`first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%`);
+    }
+  }
+
+  if (segmentFilter !== 'all') {
+    query = query.eq('segment', segmentFilter);
+  }
+
+  if (statusFilter !== 'all') {
+    query = query.eq('status', statusFilter);
+  }
+
+  if (activityFilter === 'Never Contacted') {
+    query = query.is('last_contacted_date', null);
+  } else if (activityFilter === 'Contacted') {
+    query = query
+      .not('last_contacted_date', 'is', null)
+      .eq('reply_received', false)
+      .neq('engagement_level', 'ENGAGED');
+  } else if (activityFilter === 'Replied') {
+    query = query.or('(engagement_level.eq.ENGAGED),(reply_received.eq.true)');
+  }
+
+  query = query.order('lead_score', { ascending: false });
+
+  const { data, error } = await query;
+
+  if (error) {
+    console.error('Error fetching leads for export:', error);
+    throw new Error(error.message);
+  }
+
+  return data || [];
+}
+
 export async function getLeadDetail(leadId: string): Promise<LeadDetail | null> {
   const { data, error } = await supabase
     .from('leads')
