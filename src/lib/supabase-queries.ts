@@ -403,7 +403,7 @@ export async function createCampaign(data: {
       campaign_name: data.name,
       description: `Mock campaign targeting ${data.segment} leads`,
       target_segment: data.segment,
-      contact_filter: data.contactFilter || { type: 'skip_days', days: 30 },
+      contact_filter: data.contactFilter || null,
       leads_count: MOCK_LEADS_DATA.filter(lead => lead.segment === data.segment).length,
       start_date: new Date().toISOString().split('T')[0],
       end_date: null,
@@ -434,8 +434,6 @@ export async function createCampaign(data: {
     return Promise.resolve(newCampaign);
   }
 
-  const contactFilter = data.contactFilter || { type: 'skip_days', days: 30 };
-
   const { data: campaign, error: insertError } = await supabase
     .from('campaigns')
     .insert({
@@ -444,7 +442,7 @@ export async function createCampaign(data: {
       budget_eur: data.budget,
       expected_reply_rate: null,
       sync_reminder_frequency: data.syncReminder,
-      contact_filter: contactFilter,
+      contact_filter: data.contactFilter || null,
       status: 'CREATED',
       leads_count: 0,
       webhook_status: 'PENDING_SHEETS_SYNC',
@@ -465,9 +463,9 @@ export async function createCampaign(data: {
     .select('id', { count: 'exact', head: true })
     .eq('segment', data.segment);
 
-  if (contactFilter.type === 'skip_days' && contactFilter.days > 0) {
+  if (data.contactFilter?.type === 'skip_days' && data.contactFilter?.days > 0) {
     const cutoffDate = new Date();
-    cutoffDate.setDate(cutoffDate.getDate() - contactFilter.days);
+    cutoffDate.setDate(cutoffDate.getDate() - data.contactFilter.days);
 
     query = query.or(`last_contacted_date.is.null,last_contacted_date.lt.${cutoffDate.toISOString()}`);
   }
@@ -611,10 +609,9 @@ export async function getCampaignLeads(campaign: Campaign): Promise<Lead[]> {
     .select('id, phone_number, first_name, last_name, segment, last_contacted_date')
     .eq('segment', campaign.target_segment || '');
 
-  const contactFilter = campaign.contact_filter;
-  if (contactFilter && contactFilter.type === 'skip_days' && contactFilter.days > 0) {
+  if (campaign.contact_filter?.type === 'skip_days' && campaign.contact_filter?.days > 0) {
     const cutoffDate = new Date();
-    cutoffDate.setDate(cutoffDate.getDate() - contactFilter.days);
+    cutoffDate.setDate(cutoffDate.getDate() - campaign.contact_filter.days);
     query = query.or(`last_contacted_date.is.null,last_contacted_date.lt.${cutoffDate.toISOString()}`);
   }
 
@@ -1371,7 +1368,7 @@ export async function generateCampaignCSV(campaignId: string): Promise<string> {
     query = query.eq('segment', campaign.target_segment);
   }
 
-  if (campaign.contact_filter?.days && campaign.contact_filter.days > 0) {
+  if (campaign.contact_filter?.type === 'skip_days' && campaign.contact_filter?.days > 0) {
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - campaign.contact_filter.days);
     query = query.or(`last_contacted_date.is.null,last_contacted_date.lt.${cutoffDate.toISOString()}`);
