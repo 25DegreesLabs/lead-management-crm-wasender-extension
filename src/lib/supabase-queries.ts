@@ -378,7 +378,7 @@ export async function getCampaigns(userId: string = CURRENT_USER_ID, limit: numb
   const { data, error } = await supabase
     .from('campaigns')
     .select('*')
-    .or(`user_id.eq.${userId},user_id.eq.default_user`)
+    .in('user_id', [userId, 'default_user'])
     .order('created_at', { ascending: false })
     .limit(limit);
 
@@ -463,7 +463,7 @@ export async function createCampaign(data: {
   let query = supabase
     .from('leads')
     .select('id', { count: 'exact', head: true })
-    .or(`user_id.eq.${data.user_id},user_id.eq.default_user`);  // Support both UUID and default_user
+    .in('user_id', [data.user_id, 'default_user']);
 
   if (data.segment && data.segment !== 'ALL') {
     query = query.eq('segment', data.segment);
@@ -499,7 +499,7 @@ export async function createCampaign(data: {
       const { data: leadsData, error: leadsError } = await supabase
         .from('leads')
         .select('id, positive_signal_groups')
-        .or(`user_id.eq.${data.user_id},user_id.eq.default_user`)
+        .in('user_id', [data.user_id, 'default_user'])
         .eq('segment', data.segment);
 
       if (!leadsError && leadsData) {
@@ -660,7 +660,7 @@ export async function getCampaignLeads(campaign: Campaign): Promise<Lead[]> {
       last_contacted_date,
       positive_signal_groups
     `)
-    .or(`user_id.eq.${campaign.user_id},user_id.eq.default_user`);
+    .in('user_id', [campaign.user_id, 'default_user']);
 
   // Step 3: Apply segment filter
   if (campaign.target_segment && campaign.target_segment !== 'ALL') {
@@ -802,7 +802,7 @@ export async function getWhatsAppGroupsWithLeadCounts(userId: string): Promise<W
       const { count, error } = await supabase
         .from('leads')
         .select('*', { count: 'exact', head: true })
-        .or(`user_id.eq.${userId},user_id.eq.default_user`)
+        .in('user_id', [userId, 'default_user'])
         .contains('positive_signal_groups', [group.group_name]);
 
       if (error) {
@@ -1241,7 +1241,7 @@ export async function getAllLeadsForExport(params: {
   let query = supabase
     .from('leads')
     .select('id, phone_number, first_name, last_name, segment, status, last_contacted_date, reply_received, engagement_level')
-    .or(`user_id.eq.${userId},user_id.eq.default_user`);  // Match both user IDs
+    .in('user_id', [userId, 'default_user']);
 
   // Apply filters (same logic as getLeads)
   if (searchTerm) {
@@ -1364,7 +1364,7 @@ export async function getLeadPipelineMetrics(userId: string): Promise<LeadPipeli
   const { data: leads, error } = await supabase
     .from('leads')
     .select('segment, status, reply_received, engagement_level, lead_score, do_not_contact')
-    .or(`user_id.eq.${userId},user_id.eq.default_user`);
+    .in('user_id', [userId, 'default_user']);
 
   if (error) {
     console.error('Error fetching lead pipeline metrics:', error);
@@ -1454,7 +1454,7 @@ export async function getSegmentDistribution(userId: string): Promise<SegmentDis
   const { data: leads, error } = await supabase
     .from('leads')
     .select('segment, status')
-    .or(`user_id.eq.${userId},user_id.eq.default_user`);
+    .in('user_id', [userId, 'default_user']);
 
   if (error) {
     console.error('Error fetching segment distribution:', error);
