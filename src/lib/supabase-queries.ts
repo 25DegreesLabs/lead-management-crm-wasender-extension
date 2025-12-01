@@ -355,19 +355,29 @@ export async function getLatestSync(): Promise<SyncEvent | null> {
     return Promise.resolve(MOCK_SYNC_EVENT);
   }
 
-  const { data, error } = await supabase
-    .from('sync_events')
-    .select('*')
-    .order('timestamp', { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  try {
+    const { data, error } = await supabase
+      .from('sync_events')
+      .select('*')
+      .order('timestamp', { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
-  if (error) {
-    console.error('Error fetching latest sync:', error);
+    if (error) {
+      // Gracefully handle missing table (PGRST205 error)
+      if (error.code === 'PGRST205') {
+        console.warn('sync_events table not found - skipping sync status');
+        return null;
+      }
+      console.error('Error fetching latest sync:', error);
+      return null;
+    }
+
+    return data;
+  } catch (err) {
+    console.warn('Failed to fetch sync events:', err);
     return null;
   }
-
-  return data;
 }
 
 export async function getCampaigns(userId: string = CURRENT_USER_ID, limit: number = 10): Promise<Campaign[]> {
