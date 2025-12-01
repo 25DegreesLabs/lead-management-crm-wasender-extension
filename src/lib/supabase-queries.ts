@@ -461,7 +461,11 @@ export async function createCampaign(data: {
   let query = supabase
     .from('leads')
     .select('id', { count: 'exact', head: true })
-    .eq('segment', data.segment);
+    .eq('user_id', data.user_id);
+
+  if (data.segment && data.segment !== 'ALL') {
+    query = query.eq('segment', data.segment);
+  }
 
   if (data.contactFilter?.type === 'skip_days' && data.contactFilter?.days > 0) {
     const cutoffDate = new Date();
@@ -607,7 +611,11 @@ export async function getCampaignLeads(campaign: Campaign): Promise<Lead[]> {
   let query = supabase
     .from('leads')
     .select('id, phone_number, first_name, last_name, segment, last_contacted_date')
-    .eq('segment', campaign.target_segment || '');
+    .eq('user_id', campaign.user_id);
+
+  if (campaign.target_segment && campaign.target_segment !== 'ALL') {
+    query = query.eq('segment', campaign.target_segment);
+  }
 
   if (campaign.contact_filter?.type === 'skip_days' && campaign.contact_filter?.days > 0) {
     const cutoffDate = new Date();
