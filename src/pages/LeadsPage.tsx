@@ -149,7 +149,7 @@ export default function LeadsPage() {
       const csvRows = [
         'WhatsApp Number,First Name,Last Name,Icebreaker',
         ...allLeads.map(lead => {
-          const phone = lead.phone_number || '';
+          const phone = String(lead.phone_number || '');  // Convert bigint to string
           const phoneWithPlus = phone && !phone.startsWith('+') ? '+' + phone : phone;
           const firstName = lead.first_name || '';
           const lastName = lead.last_name || '';
