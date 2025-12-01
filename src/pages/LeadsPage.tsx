@@ -14,7 +14,7 @@ const segmentColors = {
 const statusColors: Record<string, string> = {
   ACTIVE: 'bg-apple-green/20 text-apple-green',
   CONTACTED: 'bg-apple-blue/20 text-apple-blue',
-  REPLIED: 'bg-purple-500/20 text-purple-500',a
+  REPLIED: 'bg-purple-500/20 text-purple-500',
   NOT_INTERESTED: 'bg-gray-500/20 text-gray-500',
   NEW: 'bg-cyan-500/20 text-cyan-500',
 };
