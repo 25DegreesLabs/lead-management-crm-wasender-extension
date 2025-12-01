@@ -1,5 +1,4 @@
 import { supabase } from './supabase';
-import { CURRENT_USER_ID } from './constants';
 
 // Mock data toggle - set to true to use mock data instead of Supabase
 const USE_MOCK_DATA = import.meta.env.VITE_USE_MOCK_DATA === 'true' || false;
@@ -355,32 +354,22 @@ export async function getLatestSync(): Promise<SyncEvent | null> {
     return Promise.resolve(MOCK_SYNC_EVENT);
   }
 
-  try {
-    const { data, error } = await supabase
-      .from('sync_events')
-      .select('*')
-      .order('timestamp', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+  const { data, error } = await supabase
+    .from('sync_events')
+    .select('*')
+    .order('timestamp', { ascending: false })
+    .limit(1)
+    .maybeSingle();
 
-    if (error) {
-      // Gracefully handle missing table (PGRST205 error)
-      if (error.code === 'PGRST205') {
-        console.warn('sync_events table not found - skipping sync status');
-        return null;
-      }
-      console.error('Error fetching latest sync:', error);
-      return null;
-    }
-
-    return data;
-  } catch (err) {
-    console.warn('Failed to fetch sync events:', err);
+  if (error) {
+    console.error('Error fetching latest sync:', error);
     return null;
   }
+
+  return data;
 }
 
-export async function getCampaigns(userId: string = CURRENT_USER_ID, limit: number = 10): Promise<Campaign[]> {
+export async function getCampaigns(limit: number = 10): Promise<Campaign[]> {
   if (USE_MOCK_DATA) {
     return Promise.resolve(MOCK_CAMPAIGNS_DATA.slice(0, limit));
   }
@@ -388,7 +377,6 @@ export async function getCampaigns(userId: string = CURRENT_USER_ID, limit: numb
   const { data, error } = await supabase
     .from('campaigns')
     .select('*')
-    .in('user_id', [userId, 'default_user'])
     .order('created_at', { ascending: false })
     .limit(limit);
 
@@ -415,7 +403,7 @@ export async function createCampaign(data: {
       campaign_name: data.name,
       description: `Mock campaign targeting ${data.segment} leads`,
       target_segment: data.segment,
-      contact_filter: data.contactFilter || null,
+      contact_filter: data.contactFilter || { type: 'skip_days', days: 30 },
       leads_count: MOCK_LEADS_DATA.filter(lead => lead.segment === data.segment).length,
       start_date: new Date().toISOString().split('T')[0],
       end_date: null,
@@ -446,6 +434,8 @@ export async function createCampaign(data: {
     return Promise.resolve(newCampaign);
   }
 
+  const contactFilter = data.contactFilter || { type: 'skip_days', days: 30 };
+
   const { data: campaign, error: insertError } = await supabase
     .from('campaigns')
     .insert({
@@ -454,7 +444,7 @@ export async function createCampaign(data: {
       budget_eur: data.budget,
       expected_reply_rate: null,
       sync_reminder_frequency: data.syncReminder,
-      contact_filter: data.contactFilter || null,
+      contact_filter: contactFilter,
       status: 'CREATED',
       leads_count: 0,
       webhook_status: 'PENDING_SHEETS_SYNC',
@@ -470,37 +460,18 @@ export async function createCampaign(data: {
     throw new Error(insertError.message);
   }
 
-  // Build query to count eligible leads
   let query = supabase
     .from('leads')
-    .select('id', { count: 'exact', head: true });
+    .select('id', { count: 'exact', head: true })
+    .in('user_id', [data.user_id, 'default_user'])
+    .eq('segment', data.segment);
 
-  // Filter by user_id - support both specific user and default_user
-  if (data.user_id === 'default_user') {
-    query = query.eq('user_id', 'default_user');
-  } else {
-    query = query.or(`user_id.eq.${data.user_id},user_id.eq.default_user`);
-  }
-
-  // Filter by segment
-  if (data.segment && data.segment !== 'ALL') {
-    query = query.eq('segment', data.segment);
-  }
-
-  // Apply contact filter (skip days)
-  if (data.contactFilter?.type === 'skip_days' && data.contactFilter?.days > 0) {
+  if (contactFilter.type === 'skip_days' && contactFilter.days > 0) {
     const cutoffDate = new Date();
-    cutoffDate.setDate(cutoffDate.getDate() - data.contactFilter.days);
+    cutoffDate.setDate(cutoffDate.getDate() - contactFilter.days);
 
     query = query.or(`last_contacted_date.is.null,last_contacted_date.lt.${cutoffDate.toISOString()}`);
   }
-
-  console.log('Counting leads with filters:', {
-    user_id: data.user_id,
-    segment: data.segment,
-    contactFilter: data.contactFilter,
-    selectedGroups: data.selectedGroups
-  });
 
   const { count, error: countError } = await query;
 
@@ -509,48 +480,26 @@ export async function createCampaign(data: {
   }
 
   let eligibleCount = count || 0;
-  console.log('Initial lead count (before group filtering):', eligibleCount);
 
   // If groups selected, apply AND logic (lead must be in ALL groups)
   if (data.selectedGroups && data.selectedGroups.length > 0) {
-    console.log('Applying group filter, selected groups:', data.selectedGroups);
-
     // Fetch group names from IDs
     const { data: groups, error: groupsError } = await supabase
       .from('user_whatsapp_groups')
       .select('id, group_name')
       .in('id', data.selectedGroups);
 
-    if (groupsError) {
-      console.error('Error fetching group names:', groupsError);
-    } else if (groups) {
+    if (!groupsError && groups) {
       const selectedGroupNames = groups.map(g => g.group_name);
-      console.log('Selected group names:', selectedGroupNames);
 
-      // Build query for leads with groups - match same filters as count query
-      let leadsQuery = supabase
+      // Fetch leads with their groups
+      const { data: leadsData, error: leadsError } = await supabase
         .from('leads')
-        .select('id, positive_signal_groups');
+        .select('id, positive_signal_groups')
+        .in('user_id', [data.user_id, 'default_user'])
+        .eq('segment', data.segment);
 
-      // Apply same user_id filter
-      if (data.user_id === 'default_user') {
-        leadsQuery = leadsQuery.eq('user_id', 'default_user');
-      } else {
-        leadsQuery = leadsQuery.or(`user_id.eq.${data.user_id},user_id.eq.default_user`);
-      }
-
-      // Apply same segment filter
-      if (data.segment && data.segment !== 'ALL') {
-        leadsQuery = leadsQuery.eq('segment', data.segment);
-      }
-
-      const { data: leadsData, error: leadsError } = await leadsQuery;
-
-      if (leadsError) {
-        console.error('Error fetching leads for group filtering:', leadsError);
-      } else if (leadsData) {
-        console.log('Total leads before group filtering:', leadsData.length);
-
+      if (!leadsError && leadsData) {
         // Filter client-side: lead must contain ALL selected groups (AND logic)
         const filteredLeads = leadsData.filter(lead => {
           const leadGroups = lead.positive_signal_groups || [];
@@ -562,12 +511,9 @@ export async function createCampaign(data: {
         });
 
         eligibleCount = filteredLeads.length;
-        console.log('Leads after group filtering (AND logic):', eligibleCount);
       }
     }
   }
-
-  console.log('Final eligible lead count:', eligibleCount);
 
   const { error: updateError } = await supabase
     .from('campaigns')
@@ -576,8 +522,6 @@ export async function createCampaign(data: {
 
   if (updateError) {
     console.error('Error updating campaign leads count:', updateError);
-  } else {
-    console.log('Successfully updated campaign leads_count to:', eligibleCount);
   }
 
   if (data.selectedGroups && data.selectedGroups.length > 0) {
@@ -691,43 +635,24 @@ export interface Lead {
 
 export async function getCampaignLeads(campaign: Campaign): Promise<Lead[]> {
   if (USE_MOCK_DATA) {
-    const filteredLeads = MOCK_CAMPAIGN_LEADS.filter(lead =>
+    const filteredLeads = MOCK_CAMPAIGN_LEADS.filter(lead => 
       lead.segment === campaign.target_segment
     );
     return Promise.resolve(filteredLeads);
   }
 
-  // Step 1: Get selected groups for this campaign
-  const selectedGroups = await getCampaignGroups(campaign.id);
-  const selectedGroupNames = selectedGroups.map(g => g.group_name);
-
-  // Step 2: Build base query with group columns
   let query = supabase
     .from('leads')
-    .select(`
-      id,
-      phone_number,
-      first_name,
-      last_name,
-      segment,
-      last_contacted_date,
-      positive_signal_groups
-    `)
-    .in('user_id', [campaign.user_id, 'default_user']);
+    .select('id, phone_number, first_name, last_name, segment, last_contacted_date')
+    .eq('segment', campaign.target_segment || '');
 
-  // Step 3: Apply segment filter
-  if (campaign.target_segment && campaign.target_segment !== 'ALL') {
-    query = query.eq('segment', campaign.target_segment);
-  }
-
-  // Step 4: Apply contact filter (skip recently contacted)
-  if (campaign.contact_filter?.type === 'skip_days' && campaign.contact_filter?.days > 0) {
+  const contactFilter = campaign.contact_filter;
+  if (contactFilter && contactFilter.type === 'skip_days' && contactFilter.days > 0) {
     const cutoffDate = new Date();
-    cutoffDate.setDate(cutoffDate.getDate() - campaign.contact_filter.days);
+    cutoffDate.setDate(cutoffDate.getDate() - contactFilter.days);
     query = query.or(`last_contacted_date.is.null,last_contacted_date.lt.${cutoffDate.toISOString()}`);
   }
 
-  // Fetch all leads matching segment + contact filters
   const { data, error } = await query;
 
   if (error) {
@@ -735,30 +660,7 @@ export async function getCampaignLeads(campaign: Campaign): Promise<Lead[]> {
     return [];
   }
 
-  let leads = data || [];
-
-  // Step 5: CLIENT-SIDE group filtering (if groups selected)
-  if (selectedGroupNames.length > 0) {
-    leads = leads.filter(lead => {
-      // Check if lead belongs to ANY of the selected groups
-      const leadGroups = lead.positive_signal_groups || [];
-
-      // Lead matches if ANY of their groups match ANY selected group
-      return selectedGroupNames.some(selectedGroup =>
-        leadGroups.includes(selectedGroup)
-      );
-    });
-  }
-
-  // Return only essential fields (remove group arrays)
-  return leads.map(lead => ({
-    id: lead.id,
-    phone_number: lead.phone_number,
-    first_name: lead.first_name,
-    last_name: lead.last_name,
-    segment: lead.segment,
-    last_contacted_date: lead.last_contacted_date
-  }));
+  return data || [];
 }
 
 export interface UserAverages {
@@ -833,10 +735,10 @@ export interface WhatsAppGroup {
 }
 
 export async function getWhatsAppGroups(userId: string): Promise<WhatsAppGroup[]> {
-  const { data, error } = await supabase
+  const { data, error} = await supabase
     .from('user_whatsapp_groups')
     .select('*')
-    .eq('user_id', userId)
+    .in('user_id', [userId, 'default_user'])
     .order('created_at', { ascending: true });
 
   if (error) {
@@ -855,8 +757,8 @@ export async function getWhatsAppGroupsWithLeadCounts(userId: string): Promise<W
       const { count, error } = await supabase
         .from('leads')
         .select('*', { count: 'exact', head: true })
-        .in('user_id', [userId, 'default_user'])
-        .contains('positive_signal_groups', [group.group_name]);
+        .eq('user_id', userId)
+        .or(`whatsapp_groups_raw.cs.{"${group.group_name}"},positive_signal_groups.cs.{"${group.group_name}"},negative_signal_groups.cs.{"${group.group_name}"},neutral_signal_groups.cs.{"${group.group_name}"}`);
 
       if (error) {
         console.error(`Error counting leads for group ${group.group_name}:`, error);
@@ -990,7 +892,7 @@ export async function getEngagementRules(userId: string): Promise<EngagementRule
   const { data, error } = await supabase
     .from('engagement_rules')
     .select('*')
-    .eq('user_id', userId)
+    .in('user_id', [userId, 'default_user'])
     .order('created_at', { ascending: true });
 
   if (error) {
@@ -1213,7 +1115,7 @@ export async function getLeads(params: LeadsQueryParams): Promise<LeadsQueryResu
     `,
       { count: 'exact' }
     )
-    .eq('user_id', userId);
+    .in('user_id', [userId, 'default_user']);
 
   if (searchTerm) {
     const phoneDigits = searchTerm.replace(/\D/g, '');
@@ -1269,70 +1171,6 @@ export async function getLeads(params: LeadsQueryParams): Promise<LeadsQueryResu
     pageSize,
     totalPages,
   };
-}
-
-/**
- * Fetch ALL leads for CSV export (no pagination)
- * Uses same filters as getLeads() but returns complete dataset
- */
-export async function getAllLeadsForExport(params: {
-  userId: string;
-  searchTerm?: string;
-  segmentFilter?: string;
-  statusFilter?: string;
-  activityFilter?: string;
-}): Promise<Lead[]> {
-  const {
-    userId,
-    searchTerm = '',
-    segmentFilter = 'all',
-    statusFilter,
-    activityFilter
-  } = params;
-
-  // Build query
-  let query = supabase
-    .from('leads')
-    .select('id, phone_number, first_name, last_name, segment, status, last_contacted_date, reply_received, engagement_level')
-    .in('user_id', [userId, 'default_user']);
-
-  // Apply filters (same logic as getLeads)
-  if (searchTerm) {
-    query = query.or(
-      `first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%,phone_number.ilike.%${searchTerm}%`
-    );
-  }
-
-  if (segmentFilter && segmentFilter !== 'all') {
-    query = query.eq('segment', segmentFilter);
-  }
-
-  if (statusFilter && statusFilter !== 'all') {
-    query = query.eq('status', statusFilter);
-  }
-
-  if (activityFilter === 'Never Contacted') {
-    query = query.is('last_contacted_date', null);
-  } else if (activityFilter === 'Contacted') {
-    query = query
-      .not('last_contacted_date', 'is', null)
-      .eq('reply_received', false)
-      .neq('engagement_level', 'ENGAGED');
-  } else if (activityFilter === 'Replied') {
-    query = query.or('(engagement_level.eq.ENGAGED),(reply_received.eq.true)');
-  }
-
-  // NO PAGINATION - fetch all results (set high limit to bypass Supabase default 1000 row limit)
-  query = query.order('created_at', { ascending: false }).limit(100000);
-
-  const { data, error } = await query;
-
-  if (error) {
-    console.error('Error fetching all leads for export:', error);
-    throw new Error(error.message);
-  }
-
-  return data || [];
 }
 
 export async function getLeadDetail(leadId: string): Promise<LeadDetail | null> {
@@ -1417,7 +1255,7 @@ export async function getLeadPipelineMetrics(userId: string): Promise<LeadPipeli
   const { data: leads, error } = await supabase
     .from('leads')
     .select('segment, status, reply_received, engagement_level, lead_score, do_not_contact')
-    .in('user_id', [userId, 'default_user']);
+    .eq('user_id', userId);
 
   if (error) {
     console.error('Error fetching lead pipeline metrics:', error);
@@ -1507,7 +1345,7 @@ export async function getSegmentDistribution(userId: string): Promise<SegmentDis
   const { data: leads, error } = await supabase
     .from('leads')
     .select('segment, status')
-    .in('user_id', [userId, 'default_user']);
+    .eq('user_id', userId);
 
   if (error) {
     console.error('Error fetching segment distribution:', error);
@@ -1568,7 +1406,7 @@ export async function generateCampaignCSV(campaignId: string): Promise<string> {
     query = query.eq('segment', campaign.target_segment);
   }
 
-  if (campaign.contact_filter?.type === 'skip_days' && campaign.contact_filter?.days > 0) {
+  if (campaign.contact_filter?.days && campaign.contact_filter.days > 0) {
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - campaign.contact_filter.days);
     query = query.or(`last_contacted_date.is.null,last_contacted_date.lt.${cutoffDate.toISOString()}`);
