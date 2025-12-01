@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Search, Filter, Download, ChevronLeft, ChevronRight, AlertCircle } from 'lucide-react';
-import { getLeads, getAllLeadsForExport, LeadListItem } from '../lib/supabase-queries';
+import { getLeads, getAllLeadsForExport, LeadListItem, getLabelMappings, LabelMapping } from '../lib/supabase-queries';
 import LeadDetailPanel from '../components/LeadDetailPanel';
 import { CURRENT_USER_ID } from '../lib/constants';
 
@@ -50,7 +50,8 @@ export default function LeadsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSegment, setSelectedSegment] = useState<string>('All');
   const [selectedActivity, setSelectedActivity] = useState<string>('All');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [selectedLabel, setSelectedLabel] = useState<string>('all');
+  const [labels, setLabels] = useState<LabelMapping[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
@@ -58,17 +59,41 @@ export default function LeadsPage() {
   const [isExporting, setIsExporting] = useState(false);
   const itemsPerPage = 25;
 
+  useEffect(() => {
+    const loadLabels = async () => {
+      try {
+        const data = await getLabelMappings(CURRENT_USER_ID);
+        setLabels(data.filter(l => l.is_active));
+      } catch (err) {
+        console.error('Error loading labels:', err);
+      }
+    };
+    loadLabels();
+  }, []);
+
   const fetchLeads = useCallback(async () => {
     setLoading(true);
     setError(null);
 
     try {
+      // Map label filter to status/segment filters
+      let statusFilter = 'all';
+      let segmentOverride = selectedSegment;
+
+      if (selectedLabel !== 'all') {
+        const label = labels.find(l => l.whatsapp_label_name === selectedLabel);
+        if (label) {
+          if (label.crm_status) statusFilter = label.crm_status;
+          if (label.crm_segment) segmentOverride = label.crm_segment;
+        }
+      }
+
       const result = await getLeads({
         userId: CURRENT_USER_ID,
         page: currentPage,
         pageSize: itemsPerPage,
         searchTerm,
-        segmentFilter: selectedSegment === 'All' ? 'all' : selectedSegment,
+        segmentFilter: segmentOverride === 'All' ? 'all' : segmentOverride,
         statusFilter,
         activityFilter: selectedActivity === 'All' ? 'all' : selectedActivity,
       });
@@ -89,7 +114,7 @@ export default function LeadsPage() {
     } finally {
       setLoading(false);
     }
-  }, [currentPage, searchTerm, selectedSegment, selectedActivity, statusFilter]);
+  }, [currentPage, searchTerm, selectedSegment, selectedActivity, selectedLabel, labels]);
 
   useEffect(() => {
     fetchLeads();
@@ -97,15 +122,27 @@ export default function LeadsPage() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, selectedSegment, selectedActivity, statusFilter]);
+  }, [searchTerm, selectedSegment, selectedActivity, selectedLabel]);
 
   const handleExport = async () => {
     setIsExporting(true);
     try {
+      // Map label filter to status/segment filters
+      let statusFilter = 'all';
+      let segmentOverride = selectedSegment;
+
+      if (selectedLabel !== 'all') {
+        const label = labels.find(l => l.whatsapp_label_name === selectedLabel);
+        if (label) {
+          if (label.crm_status) statusFilter = label.crm_status;
+          if (label.crm_segment) segmentOverride = label.crm_segment;
+        }
+      }
+
       const allLeads = await getAllLeadsForExport({
         userId: CURRENT_USER_ID,
         searchTerm,
-        segmentFilter: selectedSegment === 'All' ? 'all' : selectedSegment,
+        segmentFilter: segmentOverride === 'All' ? 'all' : segmentOverride,
         statusFilter,
         activityFilter: selectedActivity === 'All' ? 'all' : selectedActivity
       });
@@ -232,16 +269,17 @@ export default function LeadsPage() {
           <div className="relative">
             <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-600 pointer-events-none" />
             <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
+              value={selectedLabel}
+              onChange={(e) => setSelectedLabel(e.target.value)}
               className="w-full pl-10 pr-8 py-3 glass dark:glass-dark rounded-xl focus:ring-2 focus:ring-apple-blue outline-none transition-smooth text-gray-900 dark:text-white appearance-none cursor-pointer"
-              aria-label="Filter by status"
+              aria-label="Filter by WhatsApp label"
             >
-              <option value="all">All Statuses</option>
-              <option value="ACTIVE">Active</option>
-              <option value="CONTACTED">Contacted</option>
-              <option value="REPLIED">Replied</option>
-              <option value="NOT_INTERESTED">Not Interested</option>
+              <option value="all">All Labels</option>
+              {labels.map((label) => (
+                <option key={label.id} value={label.whatsapp_label_name}>
+                  {label.whatsapp_label_name} → {label.crm_segment || 'No segment'} / {label.crm_status || 'No status'}
+                </option>
+              ))}
             </select>
           </div>
         </div>
