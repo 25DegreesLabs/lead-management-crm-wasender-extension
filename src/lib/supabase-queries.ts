@@ -460,21 +460,37 @@ export async function createCampaign(data: {
     throw new Error(insertError.message);
   }
 
+  // Build query to count eligible leads
   let query = supabase
     .from('leads')
-    .select('id', { count: 'exact', head: true })
-    .in('user_id', [data.user_id, 'default_user']);
+    .select('id', { count: 'exact', head: true });
 
+  // Filter by user_id - support both specific user and default_user
+  if (data.user_id === 'default_user') {
+    query = query.eq('user_id', 'default_user');
+  } else {
+    query = query.or(`user_id.eq.${data.user_id},user_id.eq.default_user`);
+  }
+
+  // Filter by segment
   if (data.segment && data.segment !== 'ALL') {
     query = query.eq('segment', data.segment);
   }
 
+  // Apply contact filter (skip days)
   if (data.contactFilter?.type === 'skip_days' && data.contactFilter?.days > 0) {
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - data.contactFilter.days);
 
     query = query.or(`last_contacted_date.is.null,last_contacted_date.lt.${cutoffDate.toISOString()}`);
   }
+
+  console.log('Counting leads with filters:', {
+    user_id: data.user_id,
+    segment: data.segment,
+    contactFilter: data.contactFilter,
+    selectedGroups: data.selectedGroups
+  });
 
   const { count, error: countError } = await query;
 
@@ -483,26 +499,48 @@ export async function createCampaign(data: {
   }
 
   let eligibleCount = count || 0;
+  console.log('Initial lead count (before group filtering):', eligibleCount);
 
   // If groups selected, apply AND logic (lead must be in ALL groups)
   if (data.selectedGroups && data.selectedGroups.length > 0) {
+    console.log('Applying group filter, selected groups:', data.selectedGroups);
+
     // Fetch group names from IDs
     const { data: groups, error: groupsError } = await supabase
       .from('user_whatsapp_groups')
       .select('id, group_name')
       .in('id', data.selectedGroups);
 
-    if (!groupsError && groups) {
+    if (groupsError) {
+      console.error('Error fetching group names:', groupsError);
+    } else if (groups) {
       const selectedGroupNames = groups.map(g => g.group_name);
+      console.log('Selected group names:', selectedGroupNames);
 
-      // Fetch leads with their groups
-      const { data: leadsData, error: leadsError } = await supabase
+      // Build query for leads with groups - match same filters as count query
+      let leadsQuery = supabase
         .from('leads')
-        .select('id, positive_signal_groups')
-        .in('user_id', [data.user_id, 'default_user'])
-        .eq('segment', data.segment);
+        .select('id, positive_signal_groups');
 
-      if (!leadsError && leadsData) {
+      // Apply same user_id filter
+      if (data.user_id === 'default_user') {
+        leadsQuery = leadsQuery.eq('user_id', 'default_user');
+      } else {
+        leadsQuery = leadsQuery.or(`user_id.eq.${data.user_id},user_id.eq.default_user`);
+      }
+
+      // Apply same segment filter
+      if (data.segment && data.segment !== 'ALL') {
+        leadsQuery = leadsQuery.eq('segment', data.segment);
+      }
+
+      const { data: leadsData, error: leadsError } = await leadsQuery;
+
+      if (leadsError) {
+        console.error('Error fetching leads for group filtering:', leadsError);
+      } else if (leadsData) {
+        console.log('Total leads before group filtering:', leadsData.length);
+
         // Filter client-side: lead must contain ALL selected groups (AND logic)
         const filteredLeads = leadsData.filter(lead => {
           const leadGroups = lead.positive_signal_groups || [];
@@ -514,9 +552,12 @@ export async function createCampaign(data: {
         });
 
         eligibleCount = filteredLeads.length;
+        console.log('Leads after group filtering (AND logic):', eligibleCount);
       }
     }
   }
+
+  console.log('Final eligible lead count:', eligibleCount);
 
   const { error: updateError } = await supabase
     .from('campaigns')
@@ -525,6 +566,8 @@ export async function createCampaign(data: {
 
   if (updateError) {
     console.error('Error updating campaign leads count:', updateError);
+  } else {
+    console.log('Successfully updated campaign leads_count to:', eligibleCount);
   }
 
   if (data.selectedGroups && data.selectedGroups.length > 0) {
@@ -1269,8 +1312,8 @@ export async function getAllLeadsForExport(params: {
     query = query.or('(engagement_level.eq.ENGAGED),(reply_received.eq.true)');
   }
 
-  // NO PAGINATION - fetch all results
-  query = query.order('created_at', { ascending: false });
+  // NO PAGINATION - fetch all results (set high limit to bypass Supabase default 1000 row limit)
+  query = query.order('created_at', { ascending: false }).limit(100000);
 
   const { data, error } = await query;
 
