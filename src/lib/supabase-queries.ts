@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { CURRENT_USER_ID } from './constants';
 
 // Mock data toggle - set to true to use mock data instead of Supabase
 const USE_MOCK_DATA = import.meta.env.VITE_USE_MOCK_DATA === 'true' || false;
@@ -369,7 +370,7 @@ export async function getLatestSync(): Promise<SyncEvent | null> {
   return data;
 }
 
-export async function getCampaigns(limit: number = 10): Promise<Campaign[]> {
+export async function getCampaigns(userId: string = CURRENT_USER_ID, limit: number = 10): Promise<Campaign[]> {
   if (USE_MOCK_DATA) {
     return Promise.resolve(MOCK_CAMPAIGNS_DATA.slice(0, limit));
   }
@@ -377,6 +378,7 @@ export async function getCampaigns(limit: number = 10): Promise<Campaign[]> {
   const { data, error } = await supabase
     .from('campaigns')
     .select('*')
+    .or(`user_id.eq.${userId},user_id.eq.default_user`)
     .order('created_at', { ascending: false })
     .limit(limit);
 
@@ -602,27 +604,46 @@ export interface Lead {
 
 export async function getCampaignLeads(campaign: Campaign): Promise<Lead[]> {
   if (USE_MOCK_DATA) {
-    const filteredLeads = MOCK_CAMPAIGN_LEADS.filter(lead => 
+    const filteredLeads = MOCK_CAMPAIGN_LEADS.filter(lead =>
       lead.segment === campaign.target_segment
     );
     return Promise.resolve(filteredLeads);
   }
 
+  // Step 1: Get selected groups for this campaign
+  const selectedGroups = await getCampaignGroups(campaign.id);
+  const selectedGroupNames = selectedGroups.map(g => g.group_name);
+
+  // Step 2: Build base query with group columns
   let query = supabase
     .from('leads')
-    .select('id, phone_number, first_name, last_name, segment, last_contacted_date')
-    .eq('user_id', campaign.user_id);
+    .select(`
+      id,
+      phone_number,
+      first_name,
+      last_name,
+      segment,
+      last_contacted_date,
+      whatsapp_groups_raw,
+      positive_signal_groups,
+      negative_signal_groups,
+      neutral_signal_groups
+    `)
+    .or(`user_id.eq.${campaign.user_id},user_id.eq.default_user`);
 
+  // Step 3: Apply segment filter
   if (campaign.target_segment && campaign.target_segment !== 'ALL') {
     query = query.eq('segment', campaign.target_segment);
   }
 
+  // Step 4: Apply contact filter (skip recently contacted)
   if (campaign.contact_filter?.type === 'skip_days' && campaign.contact_filter?.days > 0) {
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - campaign.contact_filter.days);
     query = query.or(`last_contacted_date.is.null,last_contacted_date.lt.${cutoffDate.toISOString()}`);
   }
 
+  // Fetch all leads matching segment + contact filters
   const { data, error } = await query;
 
   if (error) {
@@ -630,7 +651,35 @@ export async function getCampaignLeads(campaign: Campaign): Promise<Lead[]> {
     return [];
   }
 
-  return data || [];
+  let leads = data || [];
+
+  // Step 5: CLIENT-SIDE group filtering (if groups selected)
+  if (selectedGroupNames.length > 0) {
+    leads = leads.filter(lead => {
+      // Check if lead belongs to ANY of the selected groups
+      const leadGroups = [
+        ...(lead.whatsapp_groups_raw || []),
+        ...(lead.positive_signal_groups || []),
+        ...(lead.negative_signal_groups || []),
+        ...(lead.neutral_signal_groups || [])
+      ];
+
+      // Lead matches if ANY of their groups match ANY selected group
+      return selectedGroupNames.some(selectedGroup =>
+        leadGroups.includes(selectedGroup)
+      );
+    });
+  }
+
+  // Return only essential fields (remove group arrays)
+  return leads.map(lead => ({
+    id: lead.id,
+    phone_number: lead.phone_number,
+    first_name: lead.first_name,
+    last_name: lead.last_name,
+    segment: lead.segment,
+    last_contacted_date: lead.last_contacted_date
+  }));
 }
 
 export interface UserAverages {
@@ -1143,6 +1192,67 @@ export async function getLeads(params: LeadsQueryParams): Promise<LeadsQueryResu
   };
 }
 
+/**
+ * Fetch ALL leads for CSV export (no pagination)
+ * Uses same filters as getLeads() but returns complete dataset
+ */
+export async function getAllLeadsForExport(params: {
+  userId: string;
+  searchTerm?: string;
+  segmentFilter?: string;
+  statusFilter?: string;
+  activityFilter?: string;
+}): Promise<Lead[]> {
+  const {
+    userId,
+    searchTerm = '',
+    segmentFilter = 'all',
+    statusFilter,
+    activityFilter
+  } = params;
+
+  // Build query
+  let query = supabase
+    .from('leads')
+    .select('id, phone_number, first_name, last_name, segment, status, last_contacted_date')
+    .or(`user_id.eq.${userId},user_id.eq.default_user`);  // Match both user IDs
+
+  // Apply filters (same logic as getLeads)
+  if (searchTerm) {
+    query = query.or(
+      `first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%,phone_number.ilike.%${searchTerm}%`
+    );
+  }
+
+  if (segmentFilter && segmentFilter !== 'all') {
+    query = query.eq('segment', segmentFilter);
+  }
+
+  if (statusFilter) {
+    query = query.eq('status', statusFilter);
+  }
+
+  if (activityFilter === 'contacted') {
+    query = query.not('last_contacted_date', 'is', null);
+  } else if (activityFilter === 'not_contacted') {
+    query = query.is('last_contacted_date', null);
+  } else if (activityFilter === 'replied') {
+    query = query.eq('reply_received', true);
+  }
+
+  // NO PAGINATION - fetch all results
+  query = query.order('created_at', { ascending: false });
+
+  const { data, error } = await query;
+
+  if (error) {
+    console.error('Error fetching all leads for export:', error);
+    throw new Error(error.message);
+  }
+
+  return data || [];
+}
+
 export async function getLeadDetail(leadId: string): Promise<LeadDetail | null> {
   const { data, error } = await supabase
     .from('leads')
@@ -1225,7 +1335,7 @@ export async function getLeadPipelineMetrics(userId: string): Promise<LeadPipeli
   const { data: leads, error } = await supabase
     .from('leads')
     .select('segment, status, reply_received, engagement_level, lead_score, do_not_contact')
-    .eq('user_id', userId);
+    .or(`user_id.eq.${userId},user_id.eq.default_user`);
 
   if (error) {
     console.error('Error fetching lead pipeline metrics:', error);
@@ -1315,7 +1425,7 @@ export async function getSegmentDistribution(userId: string): Promise<SegmentDis
   const { data: leads, error } = await supabase
     .from('leads')
     .select('segment, status')
-    .eq('user_id', userId);
+    .or(`user_id.eq.${userId},user_id.eq.default_user`);
 
   if (error) {
     console.error('Error fetching segment distribution:', error);
