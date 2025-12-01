@@ -463,7 +463,7 @@ export async function createCampaign(data: {
   let query = supabase
     .from('leads')
     .select('id', { count: 'exact', head: true })
-    .eq('user_id', data.user_id);
+    .or(`user_id.eq.${data.user_id},user_id.eq.default_user`);  // Support both UUID and default_user
 
   if (data.segment && data.segment !== 'ALL') {
     query = query.eq('segment', data.segment);
@@ -482,7 +482,41 @@ export async function createCampaign(data: {
     console.error('Error counting eligible leads:', countError);
   }
 
-  const eligibleCount = count || 0;
+  let eligibleCount = count || 0;
+
+  // If groups selected, apply AND logic (lead must be in ALL groups)
+  if (data.selectedGroups && data.selectedGroups.length > 0) {
+    // Fetch group names from IDs
+    const { data: groups, error: groupsError } = await supabase
+      .from('user_whatsapp_groups')
+      .select('id, group_name')
+      .in('id', data.selectedGroups);
+
+    if (!groupsError && groups) {
+      const selectedGroupNames = groups.map(g => g.group_name);
+
+      // Fetch leads with their groups
+      const { data: leadsData, error: leadsError } = await supabase
+        .from('leads')
+        .select('id, positive_signal_groups')
+        .or(`user_id.eq.${data.user_id},user_id.eq.default_user`)
+        .eq('segment', data.segment);
+
+      if (!leadsError && leadsData) {
+        // Filter client-side: lead must contain ALL selected groups (AND logic)
+        const filteredLeads = leadsData.filter(lead => {
+          const leadGroups = lead.positive_signal_groups || [];
+
+          // Check if lead has ALL selected groups
+          return selectedGroupNames.every(groupName =>
+            leadGroups.includes(groupName)
+          );
+        });
+
+        eligibleCount = filteredLeads.length;
+      }
+    }
+  }
 
   const { error: updateError } = await supabase
     .from('campaigns')
