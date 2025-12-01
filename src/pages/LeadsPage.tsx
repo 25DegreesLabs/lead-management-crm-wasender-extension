@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Search, Filter, Download, ChevronLeft, ChevronRight, AlertCircle } from 'lucide-react';
-import { getLeads, LeadListItem } from '../lib/supabase-queries';
+import { getLeads, getAllLeadsForExport, LeadListItem } from '../lib/supabase-queries';
 import LeadDetailPanel from '../components/LeadDetailPanel';
 import { CURRENT_USER_ID } from '../lib/constants';
 
@@ -14,7 +14,7 @@ const segmentColors = {
 const statusColors: Record<string, string> = {
   ACTIVE: 'bg-apple-green/20 text-apple-green',
   CONTACTED: 'bg-apple-blue/20 text-apple-blue',
-  REPLIED: 'bg-purple-500/20 text-purple-500',
+  REPLIED: 'bg-purple-500/20 text-purple-500',a
   NOT_INTERESTED: 'bg-gray-500/20 text-gray-500',
   NEW: 'bg-cyan-500/20 text-cyan-500',
 };
@@ -55,6 +55,7 @@ export default function LeadsPage() {
   const [totalCount, setTotalCount] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
   const itemsPerPage = 25;
 
   const fetchLeads = useCallback(async () => {
@@ -98,26 +99,41 @@ export default function LeadsPage() {
     setCurrentPage(1);
   }, [searchTerm, selectedSegment, selectedActivity, statusFilter]);
 
-  const handleExport = () => {
-    const csvRows = [
-      'WhatsApp Number,First Name,Last Name,Icebreaker',
-      ...leads.map(lead => {
-        const phone = lead.phone_number || '';
-        const phoneWithPlus = phone && !phone.startsWith('+') ? '+' + phone : phone;
-        const firstName = lead.first_name || '';
-        const lastName = lead.last_name || '';
-        return `${phoneWithPlus},${firstName},${lastName},`;
-      })
-    ];
-
-    const csv = csvRows.join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `leads_export_${Date.now()}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+  const handleExport = async () => {
+    setIsExporting(true);
+    try {
+      const allLeads = await getAllLeadsForExport({
+        userId: CURRENT_USER_ID,
+        searchTerm,
+        segmentFilter: selectedSegment === 'All' ? 'all' : selectedSegment,
+        statusFilter,
+        activityFilter: selectedActivity === 'All' ? 'all' : selectedActivity
+      });
+      const csvRows = [
+        'WhatsApp Number,First Name,Last Name,Icebreaker',
+        ...allLeads.map(lead => {
+          const phone = lead.phone_number || '';
+          const phoneWithPlus = phone && !phone.startsWith('+') ? '+' + phone : phone;
+          const firstName = lead.first_name || '';
+          const lastName = lead.last_name || '';
+          return `${phoneWithPlus},${firstName},${lastName},`;
+        })
+      ];
+      const csv = csvRows.join('\n');
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `leads_export_${Date.now()}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      console.log(`Exported ${allLeads.length} leads successfully`);
+    } catch (error) {
+      console.error('Export failed:', error);
+      setError('Failed to export leads. Please try again.');
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   const handleRowClick = (leadId: string) => {
@@ -144,12 +160,12 @@ export default function LeadsPage() {
             </div>
             <button
               onClick={handleExport}
-              disabled={leads.length === 0}
+              disabled={leads.length === 0 || isExporting}
               className="px-6 py-3 bg-apple-blue text-white rounded-xl font-semibold hover:scale-[1.02] hover:opacity-90 transition-smooth flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 focus:outline-none focus:ring-2 focus:ring-apple-blue whitespace-nowrap"
               aria-label="Export filtered leads to CSV"
             >
               <Download className="w-5 h-5" />
-              <span>Export CSV</span>
+              <span>{isExporting ? 'Exporting...' : 'Export CSV'}</span>
             </button>
           </div>
 
