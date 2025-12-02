@@ -464,7 +464,7 @@ export async function createCampaign(data: {
   let query = supabase
     .from('leads')
     .select('id', { count: 'exact', head: true })
-    .in('user_id', [data.user_id, 'default_user', CURRENT_USER_ID])
+    .in('user_id', [data.user_id, CURRENT_USER_ID])
     .eq('segment', data.segment);
 
   if (contactFilter.type === 'skip_days' && contactFilter.days > 0) {
@@ -497,7 +497,7 @@ export async function createCampaign(data: {
       const { data: leadsData, error: leadsError } = await supabase
         .from('leads')
         .select('id, positive_signal_groups')
-        .in('user_id', [data.user_id, 'default_user', CURRENT_USER_ID])
+        .in('user_id', [data.user_id, CURRENT_USER_ID])
         .eq('segment', data.segment);
 
       if (!leadsError && leadsData) {
@@ -739,7 +739,7 @@ export async function getWhatsAppGroups(userId: string): Promise<WhatsAppGroup[]
   const { data, error} = await supabase
     .from('user_whatsapp_groups')
     .select('*')
-    .in('user_id', [userId, 'default_user', CURRENT_USER_ID])
+    .in('user_id', [userId, CURRENT_USER_ID])
     .order('created_at', { ascending: true });
 
   if (error) {
@@ -893,7 +893,7 @@ export async function getEngagementRules(userId: string): Promise<EngagementRule
   const { data, error } = await supabase
     .from('engagement_rules')
     .select('*')
-    .in('user_id', [userId, 'default_user', CURRENT_USER_ID])
+    .in('user_id', [userId, CURRENT_USER_ID])
     .order('created_at', { ascending: true });
 
   if (error) {
@@ -1116,7 +1116,7 @@ export async function getLeads(params: LeadsQueryParams): Promise<LeadsQueryResu
     `,
       { count: 'exact' }
     )
-    .in('user_id', [userId, 'default_user', CURRENT_USER_ID]);
+    .in('user_id', [userId, CURRENT_USER_ID]);
 
   if (searchTerm) {
     const phoneDigits = searchTerm.replace(/\D/g, '');
@@ -1206,7 +1206,7 @@ export async function getAllLeadsForExport(params: {
       positive_signal_groups
     `
     )
-    .in('user_id', [userId, 'default_user', CURRENT_USER_ID]);
+    .in('user_id', [userId, CURRENT_USER_ID]);
 
   if (searchTerm) {
     const phoneDigits = searchTerm.replace(/\D/g, '');
@@ -1332,7 +1332,7 @@ export async function getLeadPipelineMetrics(userId: string): Promise<LeadPipeli
   const { data: leads, error } = await supabase
     .from('leads')
     .select('segment, status, reply_received, engagement_level, lead_score, do_not_contact')
-    .eq('user_id', userId);
+    .in('user_id', [userId, CURRENT_USER_ID]);
 
   if (error) {
     console.error('Error fetching lead pipeline metrics:', error);
@@ -1422,7 +1422,7 @@ export async function getSegmentDistribution(userId: string): Promise<SegmentDis
   const { data: leads, error } = await supabase
     .from('leads')
     .select('segment, status')
-    .eq('user_id', userId);
+    .in('user_id', [userId, CURRENT_USER_ID]);
 
   if (error) {
     console.error('Error fetching segment distribution:', error);
@@ -1555,7 +1555,7 @@ export async function getLabelMappings(userId: string): Promise<LabelMapping[]> 
   const { data, error } = await supabase
     .from('user_label_mappings')
     .select('*')
-    .eq('user_id', userId)
+    .in('user_id', [userId, CURRENT_USER_ID])
     .order('created_at', { ascending: true });
 
   if (error) {
@@ -1577,7 +1577,7 @@ export async function getLabelMappingsWithLeadCounts(userId: string): Promise<La
         let query = supabase
           .from('leads')
           .select('*', { count: 'exact', head: true })
-          .eq('user_id', userId);
+          .in('user_id', [userId, CURRENT_USER_ID]);
 
         // Handle NULL values properly
         if (label.crm_segment === null) {
