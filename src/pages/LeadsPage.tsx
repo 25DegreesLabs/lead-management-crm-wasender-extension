@@ -316,6 +316,9 @@ export default function LeadsPage() {
                       Status
                     </th>
                     <th scope="col" className="px-4 py-4 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
+                      Labels
+                    </th>
+                    <th scope="col" className="px-4 py-4 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
                       Last Contact
                     </th>
                   </tr>
@@ -344,6 +347,19 @@ export default function LeadsPage() {
                         <span className={`px-3 py-1 inline-flex text-xs leading-5 font-bold rounded-full ${lead.status ? statusColors[lead.status] || 'bg-gray-500/20 text-gray-500' : 'bg-gray-500/20 text-gray-500'}`}>
                           {lead.status || 'N/A'}
                         </span>
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="flex flex-wrap gap-1">
+                          {lead.positive_signal_groups && lead.positive_signal_groups.length > 0 ? (
+                            lead.positive_signal_groups.map((label: string, idx: number) => (
+                              <span key={idx} className="px-2 py-1 text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 rounded">
+                                {label}
+                              </span>
+                            ))
+                          ) : (
+                            <span className="text-xs text-gray-400 dark:text-gray-600">No labels</span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap">
                         <div className="text-sm text-gray-500 dark:text-gray-500">{formatRelativeTime(lead.last_contacted_date)}</div>
