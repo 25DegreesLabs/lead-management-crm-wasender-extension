@@ -184,14 +184,39 @@ export async function getLeadMetrics(): Promise<LeadMetrics> {
     return Promise.resolve(metrics);
   }
 
-  const { data, error } = await supabase
-    .from('leads')
-    .select('segment')
-    .in('user_id', [CURRENT_USER_ID, 'default_user'])
-    .limit(100000);  // Increase limit beyond default 1000 to handle large databases
+  // Fetch ALL leads using pagination
+  let allLeads: any[] = [];
+  let offset = 0;
+  const pageSize = 1000;
 
-  if (error) {
-    console.error('Error fetching lead metrics:', error);
+  while (true) {
+    const { data, error } = await supabase
+      .from('leads')
+      .select('segment')
+      .in('user_id', [CURRENT_USER_ID, 'default_user'])
+      .range(offset, offset + pageSize - 1);
+
+    if (error) {
+      console.error('Error fetching lead metrics:', error);
+      break;
+    }
+
+    if (!data || data.length === 0) {
+      break;
+    }
+
+    allLeads = allLeads.concat(data);
+
+    if (data.length < pageSize) {
+      break;
+    }
+
+    offset += pageSize;
+  }
+
+  const data = allLeads;
+
+  if (!data || data.length === 0) {
     return { total: 0, hot: 0, warm: 0, cold: 0 };
   }
 
@@ -1331,24 +1356,40 @@ export interface SegmentDistribution {
 }
 
 export async function getLeadPipelineMetrics(userId: string): Promise<LeadPipelineMetrics> {
-  const { data: leads, error } = await supabase
-    .from('leads')
-    .select('segment, status, reply_received, engagement_level, lead_score, do_not_contact')
-    .in('user_id', [userId, CURRENT_USER_ID])
-    .limit(100000);  // Increase limit beyond default 1000 to handle large databases
+  // Fetch ALL leads using pagination to bypass 1000-row Supabase limit
+  let allLeads: any[] = [];
+  let offset = 0;
+  const pageSize = 1000;
 
-  console.log('🔍 [DEBUG] getLeadPipelineMetrics - Leads fetched:', leads?.length);
+  while (true) {
+    const { data: leads, error } = await supabase
+      .from('leads')
+      .select('segment, status, reply_received, engagement_level, lead_score, do_not_contact')
+      .in('user_id', [userId, CURRENT_USER_ID])
+      .range(offset, offset + pageSize - 1);
 
-  if (error) {
-    console.error('Error fetching lead pipeline metrics:', error);
-    return {
-      totalLeads: 0,
-      totalActiveLeads: 0,
-      hotLeads: 0,
-      replyRate: 0,
-      averageScore: 0,
-    };
+    if (error) {
+      console.error('Error fetching lead pipeline metrics:', error);
+      break;
+    }
+
+    if (!leads || leads.length === 0) {
+      break;
+    }
+
+    allLeads = allLeads.concat(leads);
+
+    // If we got less than pageSize, we've reached the end
+    if (leads.length < pageSize) {
+      break;
+    }
+
+    offset += pageSize;
   }
+
+  console.log('🔍 [DEBUG] getLeadPipelineMetrics - Leads fetched:', allLeads.length);
+
+  const leads = allLeads;
 
   if (!leads || leads.length === 0) {
     return {
@@ -1425,18 +1466,39 @@ export async function getCampaignGroups(campaignId: string): Promise<WhatsAppGro
 }
 
 export async function getSegmentDistribution(userId: string): Promise<SegmentDistribution[]> {
-  const { data: leads, error } = await supabase
-    .from('leads')
-    .select('segment, status')
-    .in('user_id', [userId, CURRENT_USER_ID])
-    .limit(100000);  // Increase limit beyond default 1000 to handle large databases
+  // Fetch ALL leads using pagination to bypass 1000-row Supabase limit
+  let allLeads: any[] = [];
+  let offset = 0;
+  const pageSize = 1000;
 
-  console.log('🔍 [DEBUG] getSegmentDistribution - Leads fetched:', leads?.length);
+  while (true) {
+    const { data: leads, error } = await supabase
+      .from('leads')
+      .select('segment, status')
+      .in('user_id', [userId, CURRENT_USER_ID])
+      .range(offset, offset + pageSize - 1);
 
-  if (error) {
-    console.error('Error fetching segment distribution:', error);
-    return [];
+    if (error) {
+      console.error('Error fetching segment distribution:', error);
+      break;
+    }
+
+    if (!leads || leads.length === 0) {
+      break;
+    }
+
+    allLeads = allLeads.concat(leads);
+
+    if (leads.length < pageSize) {
+      break;
+    }
+
+    offset += pageSize;
   }
+
+  console.log('🔍 [DEBUG] getSegmentDistribution - Leads fetched:', allLeads.length);
+
+  const leads = allLeads;
 
   if (!leads || leads.length === 0) {
     return [];
@@ -1483,24 +1545,51 @@ export async function generateCampaignCSV(campaignId: string): Promise<string> {
     throw new Error('Failed to fetch campaign details');
   }
 
-  let query = supabase
-    .from('leads')
-    .select('phone_number::text, first_name, last_name')
-    .eq('user_id', campaign.user_id);
+  // Fetch ALL leads using pagination to bypass 1000-row limit
+  let allLeads: any[] = [];
+  let offset = 0;
+  const pageSize = 1000;
 
-  if (campaign.target_segment && campaign.target_segment !== 'ALL') {
-    query = query.eq('segment', campaign.target_segment);
+  while (true) {
+    let query = supabase
+      .from('leads')
+      .select('phone_number::text, first_name, last_name')
+      .eq('user_id', campaign.user_id);
+
+    if (campaign.target_segment && campaign.target_segment !== 'ALL') {
+      query = query.eq('segment', campaign.target_segment);
+    }
+
+    if (campaign.contact_filter?.days && campaign.contact_filter.days > 0) {
+      const cutoffDate = new Date();
+      cutoffDate.setDate(cutoffDate.getDate() - campaign.contact_filter.days);
+      query = query.or(`last_contacted_date.is.null,last_contacted_date.lt.${cutoffDate.toISOString()}`);
+    }
+
+    query = query.range(offset, offset + pageSize - 1);
+
+    const { data: leads, error: leadsError } = await query;
+
+    if (leadsError) {
+      console.error('Error fetching leads for CSV:', leadsError);
+      break;
+    }
+
+    if (!leads || leads.length === 0) {
+      break;
+    }
+
+    allLeads = allLeads.concat(leads);
+
+    if (leads.length < pageSize) {
+      break;
+    }
+
+    offset += pageSize;
   }
 
-  if (campaign.contact_filter?.days && campaign.contact_filter.days > 0) {
-    const cutoffDate = new Date();
-    cutoffDate.setDate(cutoffDate.getDate() - campaign.contact_filter.days);
-    query = query.or(`last_contacted_date.is.null,last_contacted_date.lt.${cutoffDate.toISOString()}`);
-  }
-
-  query = query.limit(100000);  // Increase limit beyond default 1000 to handle large campaigns
-
-  const { data: leads, error: leadsError } = await query;
+  const leads = allLeads;
+  const leadsError = null;
 
   if (leadsError) {
     console.error('Error fetching leads:', leadsError);
