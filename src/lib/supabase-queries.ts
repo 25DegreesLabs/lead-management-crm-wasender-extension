@@ -1337,6 +1337,8 @@ export async function getLeadPipelineMetrics(userId: string): Promise<LeadPipeli
     .in('user_id', [userId, CURRENT_USER_ID])
     .limit(100000);  // Increase limit beyond default 1000 to handle large databases
 
+  console.log('🔍 [DEBUG] getLeadPipelineMetrics - Leads fetched:', leads?.length);
+
   if (error) {
     console.error('Error fetching lead pipeline metrics:', error);
     return {
@@ -1359,6 +1361,7 @@ export async function getLeadPipelineMetrics(userId: string): Promise<LeadPipeli
   }
 
   const totalLeads = leads.length;
+  console.log('🔍 [DEBUG] getLeadPipelineMetrics - Total leads:', totalLeads);
 
   const activeLeads = leads.filter(
     lead => lead.status !== 'NOT_INTERESTED' && lead.do_not_contact === false
@@ -1427,6 +1430,8 @@ export async function getSegmentDistribution(userId: string): Promise<SegmentDis
     .select('segment, status')
     .in('user_id', [userId, CURRENT_USER_ID])
     .limit(100000);  // Increase limit beyond default 1000 to handle large databases
+
+  console.log('🔍 [DEBUG] getSegmentDistribution - Leads fetched:', leads?.length);
 
   if (error) {
     console.error('Error fetching segment distribution:', error);
