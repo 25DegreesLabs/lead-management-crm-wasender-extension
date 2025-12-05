@@ -186,7 +186,9 @@ export async function getLeadMetrics(): Promise<LeadMetrics> {
 
   const { data, error } = await supabase
     .from('leads')
-    .select('segment');
+    .select('segment')
+    .in('user_id', [CURRENT_USER_ID, 'default_user'])
+    .limit(100000);  // Increase limit beyond default 1000 to handle large databases
 
   if (error) {
     console.error('Error fetching lead metrics:', error);
@@ -1332,7 +1334,8 @@ export async function getLeadPipelineMetrics(userId: string): Promise<LeadPipeli
   const { data: leads, error } = await supabase
     .from('leads')
     .select('segment, status, reply_received, engagement_level, lead_score, do_not_contact')
-    .in('user_id', [userId, CURRENT_USER_ID]);
+    .in('user_id', [userId, CURRENT_USER_ID])
+    .limit(100000);  // Increase limit beyond default 1000 to handle large databases
 
   if (error) {
     console.error('Error fetching lead pipeline metrics:', error);
@@ -1422,7 +1425,8 @@ export async function getSegmentDistribution(userId: string): Promise<SegmentDis
   const { data: leads, error } = await supabase
     .from('leads')
     .select('segment, status')
-    .in('user_id', [userId, CURRENT_USER_ID]);
+    .in('user_id', [userId, CURRENT_USER_ID])
+    .limit(100000);  // Increase limit beyond default 1000 to handle large databases
 
   if (error) {
     console.error('Error fetching segment distribution:', error);
@@ -1488,6 +1492,8 @@ export async function generateCampaignCSV(campaignId: string): Promise<string> {
     cutoffDate.setDate(cutoffDate.getDate() - campaign.contact_filter.days);
     query = query.or(`last_contacted_date.is.null,last_contacted_date.lt.${cutoffDate.toISOString()}`);
   }
+
+  query = query.limit(100000);  // Increase limit beyond default 1000 to handle large campaigns
 
   const { data: leads, error: leadsError } = await query;
 
