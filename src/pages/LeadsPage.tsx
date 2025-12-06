@@ -76,26 +76,15 @@ export default function LeadsPage() {
     setError(null);
 
     try {
-      // Map label filter to status/segment filters
-      let statusFilter = 'all';
-      let segmentOverride = selectedSegment;
-
-      if (selectedLabel !== 'all') {
-        const label = labels.find(l => l.whatsapp_label_name === selectedLabel);
-        if (label) {
-          if (label.crm_status) statusFilter = label.crm_status;
-          if (label.crm_segment) segmentOverride = label.crm_segment;
-        }
-      }
-
       const result = await getLeads({
         userId: CURRENT_USER_ID,
         page: currentPage,
         pageSize: itemsPerPage,
         searchTerm,
-        segmentFilter: segmentOverride === 'All' ? 'all' : segmentOverride,
-        statusFilter,
+        segmentFilter: selectedSegment === 'All' ? 'all' : selectedSegment,
+        statusFilter: 'all',
         activityFilter: selectedActivity === 'All' ? 'all' : selectedActivity,
+        labelFilter: selectedLabel,
       });
 
       setLeads(result.leads);
@@ -114,7 +103,7 @@ export default function LeadsPage() {
     } finally {
       setLoading(false);
     }
-  }, [currentPage, searchTerm, selectedSegment, selectedActivity, selectedLabel, labels]);
+  }, [currentPage, searchTerm, selectedSegment, selectedActivity, selectedLabel]);
 
   useEffect(() => {
     fetchLeads();
