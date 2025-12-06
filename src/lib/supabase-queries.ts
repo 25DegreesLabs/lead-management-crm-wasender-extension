@@ -1104,6 +1104,7 @@ export interface LeadsQueryParams {
   segmentFilter?: string;
   statusFilter?: string;
   activityFilter?: string;
+  labelFilter?: string;
 }
 
 export interface LeadsQueryResult {
@@ -1123,6 +1124,7 @@ export async function getLeads(params: LeadsQueryParams): Promise<LeadsQueryResu
     segmentFilter = 'all',
     statusFilter = 'all',
     activityFilter = 'all',
+    labelFilter = 'all',
   } = params;
 
   let query = supabase
@@ -1162,6 +1164,10 @@ export async function getLeads(params: LeadsQueryParams): Promise<LeadsQueryResu
 
   if (statusFilter !== 'all') {
     query = query.eq('status', statusFilter);
+  }
+
+  if (labelFilter && labelFilter !== 'all') {
+    query = query.contains('positive_signal_groups', [labelFilter]);
   }
 
   if (activityFilter === 'Never Contacted') {
