@@ -167,6 +167,9 @@ export default function AnalyticsPage() {
                       HOT
                     </span>
                   </div>
+                  <p className="text-xs text-gray-500 dark:text-gray-500 mt-2">
+                    Leads classified via labels
+                  </p>
                 </div>
                 <div className="bg-red-500 p-3 rounded-2xl shadow-md">
                   <Flame className="w-6 h-6 text-white" />
@@ -174,15 +177,21 @@ export default function AnalyticsPage() {
               </div>
             </div>
 
-            {/* Card 4: Reply Rate */}
+            {/* Card 4: Engagement Classification */}
             <div className="glass dark:glass-dark rounded-2xl p-6 hover:scale-[1.01] transition-smooth shadow-lg border-l-4 border-l-green-500">
               <div className="flex items-start justify-between">
                 <div className="flex-1">
                   <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-500 mb-3">
-                    Reply Rate
+                    Engagement Classification
                   </p>
                   <p className="text-5xl font-bold font-mono text-gray-900 dark:text-white tabular-nums">
                     {metrics.replyRate.toFixed(1)}%
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-gray-500 mt-2">
+                    Based on WhatsApp label uploads
+                  </p>
+                  <p className="text-xs text-gray-400 dark:text-gray-600 mt-1">
+                    {metrics.repliedLeads} leads marked as ENGAGED
                   </p>
                 </div>
                 <div className="bg-green-500 p-3 rounded-2xl shadow-md">
@@ -191,7 +200,36 @@ export default function AnalyticsPage() {
               </div>
             </div>
 
-            {/* Card 5: Average Lead Score */}
+            {/* Card 5: Classification Coverage */}
+            <div className="glass dark:glass-dark rounded-2xl p-6 hover:scale-[1.01] transition-smooth shadow-lg border-l-4 border-l-purple-500">
+              <div className="flex items-start justify-between">
+                <div className="flex-1">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-500 mb-3">
+                    Classification Coverage
+                  </p>
+                  <p className="text-5xl font-bold font-mono text-gray-900 dark:text-white tabular-nums">
+                    {((metrics.labeledLeads / metrics.totalLeads) * 100).toFixed(1)}%
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-gray-500 mt-2">
+                    {metrics.labeledLeads} of {metrics.totalLeads} leads labeled
+                  </p>
+                </div>
+                <div className="bg-purple-500 p-3 rounded-2xl shadow-md">
+                  <Database className="w-6 h-6 text-white" />
+                </div>
+              </div>
+              {/* Progress Bar */}
+              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mt-3 overflow-hidden">
+                <div
+                  className="h-full bg-purple-500 transition-all duration-500"
+                  style={{ width: `${Math.min((metrics.labeledLeads / metrics.totalLeads) * 100, 100)}%` }}
+                ></div>
+              </div>
+            </div>
+
+            {/* REMOVED: Average Lead Score - Feature not implemented
+                Scoring calculation missing, hidden for initial handoff.
+                Can be re-enabled by uncommenting this card and implementing compute_lead_score() RPC function.
             <div className="glass dark:glass-dark rounded-2xl p-6 hover:scale-[1.01] transition-smooth shadow-lg border-l-4 border-l-gradient-to-br">
               <div className="flex items-start justify-between mb-4">
                 <div className="flex-1">
@@ -207,7 +245,6 @@ export default function AnalyticsPage() {
                   <TrendingUp className="w-6 h-6 text-white" />
                 </div>
               </div>
-              {/* Progress Bar */}
               <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 overflow-hidden">
                 <div
                   className={`h-full ${getScoreBarColor(metrics.averageScore)} transition-all duration-500`}
@@ -215,6 +252,7 @@ export default function AnalyticsPage() {
                 ></div>
               </div>
             </div>
+            */}
           </div>
         )}
 
