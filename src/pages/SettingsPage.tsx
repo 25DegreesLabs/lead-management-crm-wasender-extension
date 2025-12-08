@@ -36,6 +36,20 @@ import ConfirmLabelDeleteModal from '../components/ConfirmLabelDeleteModal';
 import Toast from '../components/Toast';
 import { CURRENT_USER_ID } from '../lib/constants';
 
+/**
+ * NOTE: WhatsApp Groups feature is hidden for initial handoff.
+ * - Feature is 60% complete (CRUD works, scoring calculation missing)
+ * - Client uses Labels feature which provides similar functionality
+ * - Can be re-enabled by uncommenting "groups" tab below and changing default activeTab
+ *
+ * To re-enable:
+ * 1. Uncomment tabs array line for 'groups'
+ * 2. Change default activeTab from 'labels' to 'groups'
+ * 3. Uncomment {activeTab === 'groups' && (...)} section
+ * 4. Re-add "Average Lead Score" card to AnalyticsPage.tsx
+ * 5. Implement compute_lead_score() RPC function
+ */
+
 interface ToastState {
   show: boolean;
   message: string;
@@ -43,7 +57,7 @@ interface ToastState {
 }
 
 export default function SettingsPage() {
-  const [activeTab, setActiveTab] = useState<'groups' | 'labels' | 'rules'>('groups');
+  const [activeTab, setActiveTab] = useState<'groups' | 'labels' | 'rules'>('labels');
   const [whatsappGroups, setWhatsappGroups] = useState<WhatsAppGroup[]>([]);
   const [engagementRules, setEngagementRules] = useState<EngagementRule[]>([]);
   const [labelMappings, setLabelMappings] = useState<LabelMapping[]>([]);
@@ -475,7 +489,8 @@ export default function SettingsPage() {
   };
 
   const tabs = [
-    { id: 'groups' as const, label: 'WhatsApp Groups', icon: Users },
+    // HIDDEN: WhatsApp Groups - Feature incomplete, hidden for initial handoff
+    // { id: 'groups' as const, label: 'WhatsApp Groups', icon: Users },
     { id: 'labels' as const, label: 'Labels & Segments', icon: MessageSquare },
     { id: 'rules' as const, label: 'Engagement Rules', icon: Zap },
   ];
@@ -530,7 +545,8 @@ export default function SettingsPage() {
         </div>
 
         <div className="p-4 sm:p-6" role="tabpanel">
-          {activeTab === 'groups' && (
+          {/* HIDDEN: WhatsApp Groups Tab Content - Feature incomplete, hidden for initial handoff */}
+          {/* {activeTab === 'groups' && (
             <div className="space-y-6">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
@@ -716,7 +732,7 @@ export default function SettingsPage() {
                 </div>
               </div>
             </div>
-          )}
+          )} */}
 
           {activeTab === 'labels' && (
             <div className="space-y-6">
