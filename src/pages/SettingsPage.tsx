@@ -75,6 +75,7 @@ export default function SettingsPage() {
   const [selectedLabel, setSelectedLabel] = useState<LabelMapping | null>(null);
   const [pendingLabelUpdate, setPendingLabelUpdate] = useState<LabelMapping | null>(null);
   const [toast, setToast] = useState<ToastState>({ show: false, message: '', type: 'success' });
+  const [showArchivedLabels, setShowArchivedLabels] = useState(false);
 
   const showToast = (message: string, type: 'success' | 'error') => {
     setToast({ show: true, message, type });
@@ -573,6 +574,17 @@ export default function SettingsPage() {
                 </button>
               </div>
 
+              {/* Toggle button for archived labels */}
+              {labelMappings.filter(l => !l.is_active).length > 0 && (
+                <button
+                  onClick={() => setShowArchivedLabels(!showArchivedLabels)}
+                  className="mb-4 px-4 py-2 bg-gray-100 dark:bg-white/10 rounded-lg hover:bg-gray-200 dark:hover:bg-white/15 transition-all flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-300"
+                >
+                  <Archive className="w-4 h-4" />
+                  {showArchivedLabels ? 'Hide' : 'Show'} {labelMappings.filter(l => !l.is_active).length} Archived Label{labelMappings.filter(l => !l.is_active).length !== 1 ? 's' : ''}
+                </button>
+              )}
+
               <div className="bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl overflow-hidden">
                 {/* Desktop Table View */}
                 <div className="hidden sm:block overflow-x-auto">
@@ -664,7 +676,7 @@ export default function SettingsPage() {
                       ))}
 
                       {/* Archived Labels Section */}
-                      {labelMappings.filter(l => !l.is_active).length > 0 && (
+                      {showArchivedLabels && labelMappings.filter(l => !l.is_active).length > 0 && (
                         <>
                           <tr className="bg-gray-100 dark:bg-white/10">
                             <td colSpan={6} className="px-6 py-3">
@@ -704,14 +716,24 @@ export default function SettingsPage() {
                                 </span>
                               </td>
                               <td className="px-6 py-4">
-                                <button
-                                  onClick={() => handleReactivateLabel(label.id)}
-                                  className="p-2 text-gray-400 hover:text-green-500 transition-colors rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 flex items-center gap-1"
-                                  aria-label="Reactivate label"
-                                  title="Reactivate label"
-                                >
-                                  <RefreshCw className="w-4 h-4" />
-                                </button>
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    onClick={() => handleReactivateLabel(label.id)}
+                                    className="p-2 text-gray-400 hover:text-green-500 transition-colors rounded-lg hover:bg-gray-100 dark:hover:bg-white/10"
+                                    aria-label="Reactivate label"
+                                    title="Reactivate label"
+                                  >
+                                    <RefreshCw className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteLabel(label)}
+                                    className="p-2 text-gray-400 hover:text-red-500 transition-colors rounded-lg hover:bg-gray-100 dark:hover:bg-white/10"
+                                    aria-label="Delete permanently"
+                                    title="Delete permanently"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </div>
                               </td>
                             </tr>
                           ))}
@@ -777,7 +799,7 @@ export default function SettingsPage() {
                   ))}
 
                   {/* Archived Labels - Mobile */}
-                  {labelMappings.filter(l => !l.is_active).length > 0 && (
+                  {showArchivedLabels && labelMappings.filter(l => !l.is_active).length > 0 && (
                     <>
                       <div className="p-4 bg-gray-100 dark:bg-white/10">
                         <div className="flex items-center gap-2">
@@ -789,16 +811,28 @@ export default function SettingsPage() {
                       </div>
                       {labelMappings.filter(l => !l.is_active).map((label) => (
                         <div key={label.id} className="p-4 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors opacity-60">
-                          <div className="flex items-start justify-between gap-3 mb-2">
+                          <div className="flex items-start justify-between gap-3 mb-3">
                             <code className="text-sm font-mono font-semibold text-gray-600 dark:text-gray-400">
                               {label.whatsapp_label_name}
                             </code>
+                            <span className="text-xs font-semibold text-gray-600 dark:text-gray-400">
+                              {label.lead_count || 0} leads
+                            </span>
+                          </div>
+                          <div className="flex gap-2">
                             <button
                               onClick={() => handleReactivateLabel(label.id)}
-                              className="px-3 py-1 text-xs text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-500/10 rounded-lg hover:bg-green-100 dark:hover:bg-green-500/20 transition-colors flex items-center gap-1"
+                              className="flex-1 px-3 py-2 text-xs text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-500/10 rounded-lg hover:bg-green-100 dark:hover:bg-green-500/20 transition-colors flex items-center justify-center gap-1"
                             >
                               <RefreshCw className="w-3 h-3" />
                               <span>Reactivate</span>
+                            </button>
+                            <button
+                              onClick={() => handleDeleteLabel(label)}
+                              className="flex-1 px-3 py-2 text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10 rounded-lg hover:bg-red-100 dark:hover:bg-red-500/20 transition-colors flex items-center justify-center gap-1"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                              <span>Delete</span>
                             </button>
                           </div>
                         </div>
@@ -1115,6 +1149,7 @@ Example: 40 + 20 = 60/100 → WARM segment`}
         onArchive={handleArchiveLabel}
         labelName={selectedLabel?.whatsapp_label_name || ''}
         leadCount={selectedLabel?.lead_count || 0}
+        isArchived={!selectedLabel?.is_active}
       />
 
       {/* Toast */}
