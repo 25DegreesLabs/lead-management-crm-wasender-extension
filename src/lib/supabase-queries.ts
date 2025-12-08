@@ -1351,8 +1351,10 @@ export interface LeadPipelineMetrics {
   totalLeads: number;
   totalActiveLeads: number;
   hotLeads: number;
+  repliedLeads: number;
   replyRate: number;
   averageScore: number;
+  labeledLeads: number;
 }
 
 export interface SegmentDistribution {
@@ -1370,7 +1372,7 @@ export async function getLeadPipelineMetrics(userId: string): Promise<LeadPipeli
   while (true) {
     const { data: leads, error } = await supabase
       .from('leads')
-      .select('segment, status, reply_received, engagement_level, lead_score, do_not_contact')
+      .select('segment, status, reply_received, engagement_level, lead_score, do_not_contact, positive_signal_groups')
       .in('user_id', [userId, CURRENT_USER_ID])
       .range(offset, offset + pageSize - 1);
 
@@ -1402,8 +1404,10 @@ export async function getLeadPipelineMetrics(userId: string): Promise<LeadPipeli
       totalLeads: 0,
       totalActiveLeads: 0,
       hotLeads: 0,
+      repliedLeads: 0,
       replyRate: 0,
       averageScore: 0,
+      labeledLeads: 0,
     };
   }
 
@@ -1433,12 +1437,21 @@ export async function getLeadPipelineMetrics(userId: string): Promise<LeadPipeli
     ? totalScore / totalActiveLeads
     : 0;
 
+  // NEW: Calculate labeled leads (leads with at least one label)
+  const labeledLeads = leads.filter(
+    lead => lead.positive_signal_groups && lead.positive_signal_groups.length > 0
+  ).length;
+
+  console.log('🔍 [DEBUG] getLeadPipelineMetrics - Labeled leads:', labeledLeads);
+
   return {
     totalLeads,
     totalActiveLeads,
     hotLeads,
+    repliedLeads,
     replyRate,
     averageScore,
+    labeledLeads,
   };
 }
 
