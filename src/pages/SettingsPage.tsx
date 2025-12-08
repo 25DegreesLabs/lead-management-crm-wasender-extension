@@ -150,6 +150,8 @@ export default function SettingsPage() {
     loadData();
   }, []);
 
+  // HIDDEN: WhatsApp Groups handlers - Feature hidden for initial handoff
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const handleAddGroup = async (newGroup: Omit<WhatsAppGroup, 'id' | 'user_id' | 'created_at' | 'updated_at'>) => {
     try {
       const requireAuth = import.meta.env.VITE_REQUIRE_AUTH === 'true';
@@ -180,6 +182,7 @@ export default function SettingsPage() {
     }
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const handleEditGroup = async (updatedGroup: WhatsAppGroup) => {
     try {
       await updateWhatsAppGroup(updatedGroup.id, {
@@ -198,6 +201,7 @@ export default function SettingsPage() {
     }
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const handleDeleteGroup = async (groupId: string) => {
     try {
       await deleteWhatsAppGroup(groupId);
@@ -210,6 +214,7 @@ export default function SettingsPage() {
   };
 
   // FIXED: Reset to Default button handler - only inserts 3 positive groups
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const handleResetGroups = async () => {
     try {
       // Determine user ID
@@ -545,194 +550,8 @@ export default function SettingsPage() {
         </div>
 
         <div className="p-4 sm:p-6" role="tabpanel">
-          {/* HIDDEN: WhatsApp Groups Tab Content - Feature incomplete, hidden for initial handoff */}
-          {/* {activeTab === 'groups' && (
-            <div className="space-y-6">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                <div>
-                  <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white mb-1 sm:mb-2">
-                    WhatsApp Groups
-                  </h2>
-                  <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
-                    Configure scoring for different WhatsApp groups
-                  </p>
-                </div>
-                <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
-                  <button
-                    onClick={() => setShowResetGroupsModal(true)}
-                    className="px-4 py-2 bg-gray-100 dark:bg-white/10 border border-gray-300 dark:border-white/20 text-gray-700 dark:text-white rounded-xl font-semibold hover:bg-gray-200 dark:hover:bg-white/15 transition-all duration-300 flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-gray-400 text-sm"
-                  >
-                    <RotateCcw className="w-4 h-4" />
-                    <span>Reset to Default</span>
-                  </button>
-                  <button
-                    onClick={() => setShowAddGroupModal(true)}
-                    className="px-4 py-2 bg-[#007AFF] text-white rounded-xl font-semibold hover:scale-[1.02] hover:brightness-110 transition-all duration-300 flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-[#007AFF]/50 shadow-[0_4px_12px_rgba(0,122,255,0.2)] text-sm"
-                  >
-                    <Plus className="w-4 h-4" />
-                    <span>Add Group</span>
-                  </button>
-                </div>
-              </div>
-
-              <div className="bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl p-3 sm:p-4">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-2">
-                  <span className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Positive Group Score: {totalGroupScore}/{maxScore}
-                  </span>
-                  <span className={`text-base sm:text-lg font-bold ${getScoreColor()}`}>
-                    {totalGroupScore}/{maxScore}
-                  </span>
-                </div>
-                <div className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                  <div
-                    className={`h-full ${getScoreBarColor()} transition-all duration-300`}
-                    style={{ width: `${Math.min(scorePercentage, 100)}%` }}
-                  />
-                </div>
-              </div>
-
-              <div className="bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl overflow-hidden">
-                {/* Desktop Table View */}
-                <div className="hidden sm:block overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="bg-gray-50 dark:bg-white/5">
-                      <tr>
-                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
-                          Group Name
-                        </th>
-                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
-                          Score
-                        </th>
-                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
-                          Actions
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                      {whatsappGroups.map((group) => (
-                        <>
-                          <tr key={group.id} className="hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
-                            <td className="px-6 py-4">
-                              <span className="text-sm font-semibold text-gray-900 dark:text-white">
-                                {group.group_name}
-                              </span>
-                            </td>
-                            <td className="px-6 py-4">
-                              <span className={`text-sm font-bold ${
-                                group.score_value > 0 ? 'text-apple-green' : 'text-red-500'
-                              }`}>
-                                {group.score_value > 0 ? '+' : ''}{group.score_value}
-                              </span>
-                            </td>
-                            <td className="px-6 py-4">
-                              <div className="flex items-center gap-2">
-                                <button
-                                  onClick={() => {
-                                    setSelectedGroup(group);
-                                    setShowEditGroupModal(true);
-                                  }}
-                                  className="p-2 text-gray-400 hover:text-apple-blue transition-colors rounded-lg hover:bg-gray-100 dark:hover:bg-white/10"
-                                  aria-label="Edit group"
-                                  title="Edit group"
-                                >
-                                  <Pencil className="w-4 h-4" />
-                                </button>
-                                <button
-                                  onClick={() => handleDeleteGroup(group.id)}
-                                  className="p-2 text-gray-400 hover:text-red-500 transition-colors rounded-lg hover:bg-gray-100 dark:hover:bg-white/10"
-                                  aria-label="Delete group"
-                                  title="Delete group"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                          <tr key={`${group.id}-desc`} className="bg-gray-50/50 dark:bg-white/[0.02]">
-                            <td colSpan={3} className="px-6 py-3">
-                              <p className="text-xs text-gray-600 dark:text-gray-400 italic">
-                                {group.description || 'No description available'}
-                              </p>
-                            </td>
-                          </tr>
-                        </>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* Mobile Card View */}
-                <div className="sm:hidden divide-y divide-gray-200 dark:divide-gray-700">
-                  {whatsappGroups.map((group) => (
-                    <div key={group.id} className="p-4 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
-                      <div className="flex items-start justify-between gap-3 mb-2">
-                        <span className="text-sm font-semibold text-gray-900 dark:text-white">
-                          {group.group_name}
-                        </span>
-                        <span className={`text-base font-bold flex-shrink-0 ${
-                          group.score_value > 0 ? 'text-apple-green' : 'text-red-500'
-                        }`}>
-                          {group.score_value > 0 ? '+' : ''}{group.score_value}
-                        </span>
-                      </div>
-                      <p className="text-xs text-gray-600 dark:text-gray-400 italic mb-3">
-                        {group.description || 'No description available'}
-                      </p>
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => {
-                            setSelectedGroup(group);
-                            setShowEditGroupModal(true);
-                          }}
-                          className="flex-1 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-white/10 rounded-lg hover:bg-gray-200 dark:hover:bg-white/15 transition-colors flex items-center justify-center gap-2"
-                        >
-                          <Pencil className="w-3.5 h-3.5" />
-                          <span>Edit</span>
-                        </button>
-                        <button
-                          onClick={() => handleDeleteGroup(group.id)}
-                          className="flex-1 px-3 py-2 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10 rounded-lg hover:bg-red-100 dark:hover:bg-red-500/20 transition-colors flex items-center justify-center gap-2"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                          <span>Delete</span>
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                {whatsappGroups.length === 0 && (
-                  <div className="text-center py-12 px-4">
-                    <p className="text-sm sm:text-base text-gray-500 dark:text-gray-400 mb-4">No WhatsApp groups configured</p>
-                    <button
-                      onClick={() => setShowAddGroupModal(true)}
-                      className="text-sm sm:text-base text-apple-blue hover:underline font-semibold"
-                    >
-                      Add your first group
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              <div className="bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl p-3 sm:p-4">
-                <div className="flex items-start gap-2 sm:gap-3">
-                  <div className="w-5 h-5 sm:w-6 sm:h-6 bg-apple-blue/20 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <span className="text-[10px] sm:text-xs font-bold text-apple-blue">📊</span>
-                  </div>
-                  <div>
-                    <h3 className="text-xs sm:text-sm font-semibold text-gray-900 dark:text-white mb-1">
-                      How Group Scoring Works
-                    </h3>
-                    <p className="text-[11px] sm:text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
-                      Each WhatsApp group a lead belongs to contributes to their overall score.
-                      Higher scores indicate more valuable leads. Keep total group scores under 50 points for balanced scoring.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )} */}
+          {/* HIDDEN: WhatsApp Groups Tab Content - Feature incomplete, hidden for initial handoff
+              To re-enable: Uncomment the groups tab in the tabs array above and the conditional render below */}
 
           {activeTab === 'labels' && (
             <div className="space-y-6">
