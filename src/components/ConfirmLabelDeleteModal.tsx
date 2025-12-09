@@ -8,6 +8,7 @@ interface ConfirmLabelDeleteModalProps {
   onArchive: () => void;
   labelName: string;
   leadCount: number;
+  isArchived?: boolean;
 }
 
 export default function ConfirmLabelDeleteModal({
@@ -16,7 +17,8 @@ export default function ConfirmLabelDeleteModal({
   onDelete,
   onArchive,
   labelName,
-  leadCount
+  leadCount,
+  isArchived = false
 }: ConfirmLabelDeleteModalProps) {
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
@@ -36,7 +38,8 @@ export default function ConfirmLabelDeleteModal({
 
   if (!isOpen) return null;
 
-  const canDelete = leadCount === 0;
+  // Allow deletion if no leads OR if label is archived
+  const canDelete = leadCount === 0 || isArchived;
 
   return (
     <div
@@ -62,7 +65,9 @@ export default function ConfirmLabelDeleteModal({
               {canDelete ? 'Delete Label Mapping?' : 'Cannot Delete Label'}
             </h2>
             <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">
-              {canDelete
+              {isArchived
+                ? 'This archived label can be safely deleted.'
+                : canDelete
                 ? 'This action will permanently delete this label mapping.'
                 : 'This label is currently assigned to leads and cannot be deleted.'}
             </p>
@@ -90,9 +95,40 @@ export default function ConfirmLabelDeleteModal({
                 {leadCount}
               </span>
             </div>
+            {isArchived && (
+              <div className="flex items-start justify-between gap-3 mt-2 pt-2 border-t border-gray-200 dark:border-white/10">
+                <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">Status:</span>
+                <span className="text-xs px-2 py-1 bg-gray-500/20 text-gray-600 dark:text-gray-400 rounded-full font-semibold">
+                  Archived
+                </span>
+              </div>
+            )}
           </div>
 
-          {canDelete ? (
+          {isArchived ? (
+            <div className="bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/30 rounded-xl p-4">
+              <h3 className="text-sm font-bold text-blue-900 dark:text-blue-400 mb-2">
+                Safe to Delete:
+              </h3>
+              <p className="text-xs text-blue-800 dark:text-blue-300 leading-relaxed mb-3">
+                This label is archived. Deleting it will not affect leads that were assigned this label—they'll keep their current segment/status values.
+              </p>
+              <ul className="space-y-1 text-xs text-blue-800 dark:text-blue-300">
+                <li className="flex items-start gap-2">
+                  <span className="text-blue-600 dark:text-blue-400 font-bold">✓</span>
+                  <span>Existing leads keep their segment/status</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-blue-600 dark:text-blue-400 font-bold">✓</span>
+                  <span>Label name can be reused later</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-blue-600 dark:text-blue-400 font-bold">✓</span>
+                  <span>Cleanup clutter from test labels</span>
+                </li>
+              </ul>
+            </div>
+          ) : canDelete ? (
             <div className="bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 rounded-xl p-4">
               <h3 className="text-sm font-bold text-red-900 dark:text-red-500 mb-2">
                 This Will:
