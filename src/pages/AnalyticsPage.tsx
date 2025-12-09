@@ -111,7 +111,7 @@ export default function AnalyticsPage() {
 
         {/* Metric Cards */}
         {!loading && !error && metrics && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 sm:gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 sm:gap-6">
             {/* Card 1: Total Leads */}
             <div className="glass dark:glass-dark rounded-2xl p-6 hover:scale-[1.01] transition-smooth shadow-lg border-l-4 border-l-gray-500">
               <div className="flex items-start justify-between">
@@ -177,21 +177,21 @@ export default function AnalyticsPage() {
               </div>
             </div>
 
-            {/* Card 4: Engagement Classification */}
-            <div className="glass dark:glass-dark rounded-2xl p-6 hover:scale-[1.01] transition-smooth shadow-lg border-l-4 border-l-green-500">
+            {/* Card 4: Engaged Leads */}
+            <div className="glass dark:glass-dark rounded-2xl p-6 hover:scale-[1.01] transition-smooth shadow-lg border-l-4 border-l-green-500" title="Updated when you upload label files marking leads as 'on going', 'Past Clients', etc.">
               <div className="flex items-start justify-between">
                 <div className="flex-1">
                   <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-500 mb-3">
-                    Engagement Classification
+                    Engaged Leads
                   </p>
                   <p className="text-5xl font-bold font-mono text-gray-900 dark:text-white tabular-nums">
-                    {metrics.replyRate.toFixed(1)}%
+                    {metrics.repliedLeads}
                   </p>
                   <p className="text-xs text-gray-500 dark:text-gray-500 mt-2">
-                    Based on WhatsApp label uploads
+                    Leads marked as actively responding
                   </p>
                   <p className="text-xs text-gray-400 dark:text-gray-600 mt-1">
-                    {metrics.repliedLeads} leads marked as ENGAGED
+                    {metrics.replyRate.toFixed(1)}% of contactable leads
                   </p>
                 </div>
                 <div className="bg-green-500 p-3 rounded-2xl shadow-md">
@@ -200,18 +200,18 @@ export default function AnalyticsPage() {
               </div>
             </div>
 
-            {/* Card 5: Classification Coverage */}
-            <div className="glass dark:glass-dark rounded-2xl p-6 hover:scale-[1.01] transition-smooth shadow-lg border-l-4 border-l-purple-500">
+            {/* Card 5: Organized Leads */}
+            <div className="glass dark:glass-dark rounded-2xl p-6 hover:scale-[1.01] transition-smooth shadow-lg border-l-4 border-l-purple-500" title="Higher % = better targeting. Upload label files to classify more leads">
               <div className="flex items-start justify-between">
                 <div className="flex-1">
                   <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-500 mb-3">
-                    Classification Coverage
+                    Organized Leads
                   </p>
                   <p className="text-5xl font-bold font-mono text-gray-900 dark:text-white tabular-nums">
                     {((metrics.labeledLeads / metrics.totalLeads) * 100).toFixed(1)}%
                   </p>
                   <p className="text-xs text-gray-500 dark:text-gray-500 mt-2">
-                    {metrics.labeledLeads} of {metrics.totalLeads} leads labeled
+                    {metrics.labeledLeads} leads properly classified
                   </p>
                 </div>
                 <div className="bg-purple-500 p-3 rounded-2xl shadow-md">
@@ -224,6 +224,50 @@ export default function AnalyticsPage() {
                   className="h-full bg-purple-500 transition-all duration-500"
                   style={{ width: `${Math.min((metrics.labeledLeads / metrics.totalLeads) * 100, 100)}%` }}
                 ></div>
+              </div>
+            </div>
+
+            {/* Card 6: Data Quality Health */}
+            <div className="glass dark:glass-dark rounded-2xl p-6 hover:scale-[1.01] transition-smooth shadow-lg border-l-4 border-l-indigo-500" title="Measures how well your leads are classified and tracked">
+              <div className="flex items-start justify-between">
+                <div className="flex-1">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-500 mb-3">
+                    Data Quality Health
+                  </p>
+                  {(() => {
+                    const qualityScore = Math.round(
+                      (metrics.labeledLeads / metrics.totalLeads * 50) +
+                      (metrics.repliedLeads / metrics.totalActiveLeads * 50)
+                    );
+                    const scoreColor = qualityScore >= 75 ? 'text-green-500' : qualityScore >= 50 ? 'text-amber-500' : 'text-red-500';
+                    const bgColor = qualityScore >= 75 ? 'bg-green-500' : qualityScore >= 50 ? 'bg-amber-500' : 'bg-red-500';
+
+                    return (
+                      <>
+                        <p className={`text-5xl font-bold font-mono tabular-nums ${scoreColor}`}>
+                          {qualityScore}
+                          <span className="text-2xl text-gray-500 dark:text-gray-500">/100</span>
+                        </p>
+                        <p className="text-xs text-gray-500 dark:text-gray-500 mt-2">
+                          {metrics.labeledLeads} of {metrics.totalLeads} classified
+                        </p>
+                        <p className="text-xs text-gray-400 dark:text-gray-600 mt-1">
+                          {metrics.repliedLeads} actively engaged
+                        </p>
+                        {/* Progress Bar */}
+                        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mt-3 overflow-hidden">
+                          <div
+                            className={`h-full ${bgColor} transition-all duration-500`}
+                            style={{ width: `${Math.min(qualityScore, 100)}%` }}
+                          ></div>
+                        </div>
+                      </>
+                    );
+                  })()}
+                </div>
+                <div className="bg-indigo-500 p-3 rounded-2xl shadow-md">
+                  <Database className="w-6 h-6 text-white" />
+                </div>
               </div>
             </div>
 
