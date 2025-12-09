@@ -383,9 +383,9 @@ export async function getLatestSync(): Promise<SyncEvent | null> {
   }
 
   const { data, error } = await supabase
-    .from('sync_events')
+    .from('sync_status')
     .select('*')
-    .order('timestamp', { ascending: false })
+    .order('last_synced_at', { ascending: false })
     .limit(1)
     .maybeSingle();
 
@@ -394,7 +394,18 @@ export async function getLatestSync(): Promise<SyncEvent | null> {
     return null;
   }
 
-  return data;
+  if (!data) {
+    return null;
+  }
+
+  // Map sync_status to SyncEvent interface
+  return {
+    id: data.id || '',
+    status: 'success',
+    total_leads: data.processed_count || 0,
+    segment_breakdown: null,
+    timestamp: data.last_synced_at || data.updated_at || new Date().toISOString(),
+  };
 }
 
 export async function getCampaigns(limit: number = 10): Promise<Campaign[]> {
@@ -1213,6 +1224,7 @@ export async function getAllLeadsForExport(params: {
   segmentFilter?: string;
   statusFilter?: string;
   activityFilter?: string;
+  labelFilter?: string;
 }): Promise<LeadListItem[]> {
   const {
     userId,
@@ -1220,6 +1232,7 @@ export async function getAllLeadsForExport(params: {
     segmentFilter = 'all',
     statusFilter = 'all',
     activityFilter = 'all',
+    labelFilter = 'all',
   } = params;
 
   let query = supabase
@@ -1271,6 +1284,10 @@ export async function getAllLeadsForExport(params: {
     query = query.or('(engagement_level.eq.ENGAGED),(reply_received.eq.true)');
   }
 
+  if (labelFilter && labelFilter !== 'all') {
+    query = query.contains('positive_signal_groups', [labelFilter]);
+  }
+
   query = query.order('lead_score', { ascending: false });
 
   const { data, error } = await query;
@@ -1312,7 +1329,6 @@ export async function getLeadDetail(leadId: string): Promise<LeadDetail | null> 
       status,
       segment,
       lead_score,
-      whatsapp_groups_raw,
       positive_signal_groups,
       negative_signal_groups,
       neutral_signal_groups,
