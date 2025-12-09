@@ -1089,7 +1089,7 @@ export interface LeadDetail extends LeadListItem {
   first_contacted_date: string | null;
   contact_count: number;
   last_reply_date: string | null;
-  whatsapp_groups_raw: string[] | null;
+  // whatsapp_groups_raw is intentionally excluded - use positive_signal_groups instead
   negative_signal_groups: string[] | null;
   neutral_signal_groups: string[] | null;
   intent_groups: string[] | null;
