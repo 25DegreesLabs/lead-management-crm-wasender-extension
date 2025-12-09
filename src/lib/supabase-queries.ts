@@ -1348,6 +1348,7 @@ export async function getLeadDetail(leadId: string): Promise<LeadDetail | null> 
     `
     )
     .eq('id', leadId)
+    .in('user_id', [CURRENT_USER_ID, 'default_user'])
     .maybeSingle();
 
   if (error) {
@@ -1854,4 +1855,3 @@ export async function reactivateLabelMapping(id: string): Promise<LabelMapping> 
   }
 
   return label;
-}
