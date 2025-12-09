@@ -1855,3 +1855,4 @@ export async function reactivateLabelMapping(id: string): Promise<LabelMapping> 
   }
 
   return label;
+}
