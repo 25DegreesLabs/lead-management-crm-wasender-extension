@@ -116,24 +116,13 @@ export default function LeadsPage() {
   const handleExport = async () => {
     setIsExporting(true);
     try {
-      // Map label filter to status/segment filters
-      let statusFilter = 'all';
-      let segmentOverride = selectedSegment;
-
-      if (selectedLabel !== 'all') {
-        const label = labels.find(l => l.whatsapp_label_name === selectedLabel);
-        if (label) {
-          if (label.crm_status) statusFilter = label.crm_status;
-          if (label.crm_segment) segmentOverride = label.crm_segment;
-        }
-      }
-
       const allLeads = await getAllLeadsForExport({
         userId: CURRENT_USER_ID,
         searchTerm,
-        segmentFilter: segmentOverride === 'All' ? 'all' : segmentOverride,
-        statusFilter,
-        activityFilter: selectedActivity === 'All' ? 'all' : selectedActivity
+        segmentFilter: selectedSegment === 'All' ? 'all' : selectedSegment,
+        statusFilter: 'all',
+        activityFilter: selectedActivity === 'All' ? 'all' : selectedActivity,
+        labelFilter: selectedLabel
       });
       const csvRows = [
         'WhatsApp Number,First Name,Last Name,Icebreaker',
@@ -307,7 +296,7 @@ export default function LeadsPage() {
                     <th scope="col" className="px-4 py-4 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
                       Labels
                     </th>
-                    <th scope="col" className="px-4 py-4 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
+                    <th scope="col" className="px-4 py-4 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider" title="Updates when campaign results are uploaded">
                       Last Contact
                     </th>
                   </tr>
