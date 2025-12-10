@@ -1,4 +1,4 @@
-import { X, Mail, Phone, MapPin, Calendar, MessageSquare, Users, AlertCircle, Info, Globe } from 'lucide-react';
+import { X, Phone, MapPin, Calendar, MessageSquare, Users, AlertCircle, Info, Globe } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { getLeadDetail, LeadDetail } from '../lib/supabase-queries';
 
@@ -153,30 +153,20 @@ export default function LeadDetailPanel({ leadId, isOpen, onClose }: LeadDetailP
                   <div className="flex items-center gap-3">
                     <Phone className="w-5 h-5 text-gray-400 dark:text-gray-600 flex-shrink-0" />
                     <div>
-                      <p className="text-xs text-gray-500 dark:text-gray-500">Phone</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-500">Phone (Primary)</p>
                       <p className="text-sm font-mono text-gray-900 dark:text-white">{lead.phone_number}</p>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-3">
-                    <Mail className="w-5 h-5 text-gray-400 dark:text-gray-600 flex-shrink-0" />
-                    <div>
-                      <p className="text-xs text-gray-500 dark:text-gray-500">Email</p>
-                      <p className="text-sm text-gray-900 dark:text-white break-all">
-                        {lead.email || <span className="text-gray-500 dark:text-gray-500 italic">— (Not provided)</span>}
-                      </p>
+                  {lead.phone_number_secondary && (
+                    <div className="flex items-center gap-3">
+                      <Phone className="w-5 h-5 text-gray-400 dark:text-gray-600 flex-shrink-0" />
+                      <div>
+                        <p className="text-xs text-gray-500 dark:text-gray-500">Phone (Secondary)</p>
+                        <p className="text-sm font-mono text-gray-900 dark:text-white">{String(lead.phone_number_secondary)}</p>
+                      </div>
                     </div>
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    <Globe className="w-5 h-5 text-gray-400 dark:text-gray-600 flex-shrink-0" />
-                    <div>
-                      <p className="text-xs text-gray-500 dark:text-gray-500">Source</p>
-                      <p className="text-sm text-gray-900 dark:text-white">
-                        {lead.scrape_source || <span className="text-gray-500 dark:text-gray-500 italic">— (Not tracked)</span>}
-                      </p>
-                    </div>
-                  </div>
+                  )}
 
                   {lead.nationality && (
                     <div className="flex items-center gap-3">
@@ -188,22 +178,57 @@ export default function LeadDetailPanel({ leadId, isOpen, onClose }: LeadDetailP
                     </div>
                   )}
 
-                  {lead.preferred_language && (
+                  <div className="flex items-center gap-3">
+                    <Globe className="w-5 h-5 text-gray-400 dark:text-gray-600 flex-shrink-0" />
+                    <div className="flex-1">
+                      <p className="text-xs text-gray-500 dark:text-gray-500">Source</p>
+                      <p className="text-sm text-gray-900 dark:text-white">
+                        {lead.scrape_source || <span className="text-gray-500 dark:text-gray-500">—</span>}
+                      </p>
+                    </div>
+                  </div>
+
+                  {lead.engagement_level && (
                     <div className="flex items-center gap-3">
                       <MessageSquare className="w-5 h-5 text-gray-400 dark:text-gray-600 flex-shrink-0" />
                       <div>
-                        <p className="text-xs text-gray-500 dark:text-gray-500">Language</p>
-                        <p className="text-sm text-gray-900 dark:text-white">{lead.preferred_language}</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-500">Engagement</p>
+                        <p className="text-sm font-semibold text-gray-900 dark:text-white">{lead.engagement_level}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {lead.delivery_status && (
+                    <div className="flex items-center gap-3">
+                      <AlertCircle className="w-5 h-5 text-gray-400 dark:text-gray-600 flex-shrink-0" />
+                      <div>
+                        <p className="text-xs text-gray-500 dark:text-gray-500">Delivery Status</p>
+                        <p className={`text-sm font-semibold ${
+                          lead.delivery_status === 'SENT_SUCCESSFULLY' ? 'text-green-500' :
+                          lead.delivery_status === 'FAILED' ? 'text-red-500' :
+                          'text-gray-900 dark:text-white'
+                        }`}>
+                          {lead.delivery_status.replace(/_/g, ' ')}
+                        </p>
                       </div>
                     </div>
                   )}
                 </div>
 
-                {lead.bio_snippet && (
-                  <div className="mt-4 pt-4 border-t border-gray-200/30 dark:border-gray-700/30">
-                    <p className="text-xs text-gray-500 dark:text-gray-500 mb-1">Bio</p>
-                    <p className="text-sm text-gray-900 dark:text-white">{lead.bio_snippet}</p>
-                  </div>
+                {lead.source_url && (
+                  <details className="mt-4 pt-4 border-t border-gray-200/30 dark:border-gray-700/30">
+                    <summary className="text-xs text-gray-500 dark:text-gray-500 cursor-pointer hover:text-gray-700 dark:hover:text-gray-300">
+                      Source URL
+                    </summary>
+                    <a
+                      href={lead.source_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm text-apple-blue hover:underline break-all mt-1 block"
+                    >
+                      {lead.source_url}
+                    </a>
+                  </details>
                 )}
               </div>
 
@@ -212,7 +237,7 @@ export default function LeadDetailPanel({ leadId, isOpen, onClose }: LeadDetailP
                   <Calendar className="w-5 h-5" />
                   Contact History
                 </h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
                     <p className="text-xs text-gray-500 dark:text-gray-500">First Contact</p>
                     <p className="text-sm text-gray-900 dark:text-white">
@@ -229,12 +254,12 @@ export default function LeadDetailPanel({ leadId, isOpen, onClose }: LeadDetailP
                     <p className="text-xs text-gray-500 dark:text-gray-500">Contact Count</p>
                     <p className="text-sm text-gray-900 dark:text-white">{lead.contact_count}</p>
                   </div>
-                  <div>
-                    <p className="text-xs text-gray-500 dark:text-gray-500">Reply Status</p>
-                    <p className="text-sm text-gray-900 dark:text-white">
-                      {lead.reply_received ? `Yes (${formatRelativeTime(lead.last_reply_date)})` : 'No'}
-                    </p>
-                  </div>
+                  {lead.send_failures > 0 && (
+                    <div>
+                      <p className="text-xs text-gray-500 dark:text-gray-500">Send Failures</p>
+                      <p className="text-sm font-semibold text-red-500">{lead.send_failures}</p>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -257,18 +282,6 @@ export default function LeadDetailPanel({ leadId, isOpen, onClose }: LeadDetailP
                 </div>
               )}
 
-              {lead.do_not_contact && (
-                <div className="glass dark:glass-dark rounded-2xl p-6 border-2 border-red-500/30">
-                  <h4 className="text-lg font-bold text-red-500 mb-2 flex items-center gap-2">
-                    <AlertCircle className="w-5 h-5" />
-                    Do Not Contact
-                  </h4>
-                  {lead.do_not_contact_reason && (
-                    <p className="text-sm text-gray-900 dark:text-white">{lead.do_not_contact_reason}</p>
-                  )}
-                </div>
-              )}
-
               {lead.notes && (
                 <div className="glass dark:glass-dark rounded-2xl p-6">
                   <h4 className="text-lg font-bold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
@@ -278,43 +291,6 @@ export default function LeadDetailPanel({ leadId, isOpen, onClose }: LeadDetailP
                   <p className="text-sm text-gray-900 dark:text-white whitespace-pre-wrap">{lead.notes}</p>
                 </div>
               )}
-
-              <div className="glass dark:glass-dark rounded-2xl p-6">
-                <h4 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Technical Details</h4>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-xs">
-                  <div>
-                    <p className="text-gray-500 dark:text-gray-500">First Seen</p>
-                    <p className="text-gray-900 dark:text-white">{formatRelativeTime(lead.first_seen_date)}</p>
-                  </div>
-                  <div>
-                    <p className="text-gray-500 dark:text-gray-500">Scrape Count</p>
-                    <p className="text-gray-900 dark:text-white">{lead.scrape_appearance_count}</p>
-                  </div>
-                  <div>
-                    <p className="text-gray-500 dark:text-gray-500">Contact Status</p>
-                    <p className="text-sm text-gray-900 dark:text-white">
-                      {lead.last_contacted_date
-                        ? (lead.reply_received
-                            ? <span className="text-green-400 font-semibold">Replied</span>
-                            : <span className="text-blue-400 font-semibold">Contacted</span>)
-                        : <span className="text-gray-400">Not Contacted</span>
-                      }
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-gray-500 dark:text-gray-500">Send Failures</p>
-                    <p className="text-gray-900 dark:text-white">{lead.send_failures}</p>
-                  </div>
-                  <div>
-                    <p className="text-gray-500 dark:text-gray-500">Total Groups</p>
-                    <p className="text-gray-900 dark:text-white">{lead.total_groups_count}</p>
-                  </div>
-                  <div>
-                    <p className="text-gray-500 dark:text-gray-500">Group Score</p>
-                    <p className="text-gray-900 dark:text-white">{lead.group_net_score}</p>
-                  </div>
-                </div>
-              </div>
             </div>
           )}
         </div>
