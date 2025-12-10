@@ -1,4 +1,4 @@
-import { PieChart, Pie, Cell, ResponsiveContainer, Legend } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import { SegmentDistribution } from '../lib/supabase-queries';
 
 interface SegmentDistributionChartProps {
@@ -11,13 +11,6 @@ const SEGMENT_COLORS: Record<string, string> = {
   WARM: '#F97316',
   COLD: '#3B82F6',
   DEAD: '#6B7280',
-};
-
-const SEGMENT_ICONS: Record<string, string> = {
-  HOT: '🔥',
-  WARM: '🟠',
-  COLD: '🔵',
-  DEAD: '⚫',
 };
 
 export default function SegmentDistributionChart({ data, loading }: SegmentDistributionChartProps) {
@@ -78,7 +71,7 @@ export default function SegmentDistributionChart({ data, loading }: SegmentDistr
             style={{ backgroundColor: SEGMENT_COLORS[item.segment] }}
           ></div>
           <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">
-            {SEGMENT_ICONS[item.segment]} {item.segment}
+            {item.segment}
           </span>
           <span className="text-xs font-bold text-gray-900 dark:text-white">
             {item.count}
