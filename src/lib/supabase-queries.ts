@@ -1413,7 +1413,7 @@ export async function getLeadPipelineMetrics(userId: string): Promise<LeadPipeli
   console.log('🔍 [DEBUG] getLeadPipelineMetrics - Total leads:', totalLeads);
 
   const activeLeads = leads.filter(
-    lead => lead.status !== 'NOT_INTERESTED' && lead.do_not_contact === false
+    lead => lead.status !== 'NOT_INTERESTED' && lead.do_not_contact !== true
   );
 
   const totalActiveLeads = activeLeads.length;
@@ -1491,7 +1491,7 @@ export async function getSegmentDistribution(userId: string): Promise<SegmentDis
   while (true) {
     const { data: leads, error } = await supabase
       .from('leads')
-      .select('segment, status')
+      .select('segment, status, do_not_contact')
       .in('user_id', [userId, CURRENT_USER_ID])
       .range(offset, offset + pageSize - 1);
 
@@ -1522,7 +1522,7 @@ export async function getSegmentDistribution(userId: string): Promise<SegmentDis
   }
 
   const activeLeads = leads.filter(
-    lead => lead.status !== 'NOT_INTERESTED' && lead.do_not_contact === false
+    lead => lead.status !== 'NOT_INTERESTED' && lead.do_not_contact !== true
   );
 
   const totalActive = activeLeads.length;
