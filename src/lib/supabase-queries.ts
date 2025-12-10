@@ -1075,34 +1075,32 @@ export interface LeadListItem {
 }
 
 export interface LeadDetail extends LeadListItem {
-  email: string | null;
+  // Core identity
+  phone_number_secondary: bigint | null;
   nationality: string | null;
-  bio_snippet: string | null;
-  preferred_language: string | null;
-  timezone: string | null;
+
+  // Source tracking
   source_url: string | null;
   scrape_source: string | null;
-  first_seen_date: string | null;
-  last_scrape_seen_date: string | null;
-  scrape_appearance_count: number;
-  profile_changed: boolean;
+
+  // Contact history
   first_contacted_date: string | null;
+  last_contacted_date: string | null;
   contact_count: number;
-  last_reply_date: string | null;
-  // whatsapp_groups_raw is intentionally excluded - use positive_signal_groups instead
-  negative_signal_groups: string[] | null;
-  neutral_signal_groups: string[] | null;
-  intent_groups: string[] | null;
-  custom_groups: string[] | null;
-  group_net_score: number;
-  primary_group: string | null;
-  primary_group_category: string | null;
-  total_groups_count: number;
-  do_not_contact: boolean;
-  do_not_contact_reason: string | null;
-  notes: string | null;
+
+  // Classification
+  engagement_level: string | null;
+  positive_signal_groups: string[] | null;
+
+  // Campaign tracking
   delivery_status: string | null;
   send_failures: number;
+  last_campaign_id: string | null;  // UUID
+
+  // User notes
+  notes: string | null;
+
+  // Timestamps
   created_at: string;
   updated_at: string;
 }
@@ -1307,42 +1305,25 @@ export async function getLeadDetail(leadId: string): Promise<LeadDetail | null> 
       `
       id,
       phone_number,
+      phone_number_secondary,
       first_name,
       last_name,
-      email,
       nationality,
-      bio_snippet,
-      preferred_language,
-      timezone,
       source_url,
       scrape_source,
-      first_seen_date,
-      last_scrape_seen_date,
-      scrape_appearance_count,
-      profile_changed,
       first_contacted_date,
       last_contacted_date,
       contact_count,
-      reply_received,
       engagement_level,
-      last_reply_date,
       status,
       segment,
       lead_score,
+      reply_received,
       positive_signal_groups,
-      negative_signal_groups,
-      neutral_signal_groups,
-      intent_groups,
-      custom_groups,
-      group_net_score,
-      primary_group,
-      primary_group_category,
-      total_groups_count,
-      do_not_contact,
-      do_not_contact_reason,
       notes,
       delivery_status,
       send_failures,
+      last_campaign_id,
       created_at,
       updated_at
     `
