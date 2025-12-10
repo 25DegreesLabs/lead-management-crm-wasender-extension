@@ -61,7 +61,7 @@ export default function SegmentDistributionChart({ data, loading }: SegmentDistr
 
   const CustomLegend = () => (
     <div className="flex flex-wrap gap-4 justify-center mt-6">
-      {data.map((item) => (
+      {data.filter(item => item.count > 0).map((item) => (
         <div
           key={item.segment}
           className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-100 dark:bg-gray-800/50"
